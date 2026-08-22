@@ -1,4 +1,4 @@
-CREATE TABLE "employees" (
+CREATE TABLE IF NOT EXISTS "employees" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   "employee_number" varchar(24) NOT NULL,
   "first_name" varchar(80) NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE "employees" (
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
   CONSTRAINT "employees_status_check" CHECK ("status" IN ('active', 'on_leave', 'inactive'))
 );
-CREATE UNIQUE INDEX "employees_number_uq" ON "employees" USING btree ("employee_number");
-CREATE UNIQUE INDEX "employees_email_uq" ON "employees" USING btree ("email");
-CREATE INDEX "employees_department_idx" ON "employees" USING btree ("department");
-CREATE INDEX "employees_status_idx" ON "employees" USING btree ("status");
+CREATE UNIQUE INDEX IF NOT EXISTS "employees_number_uq" ON "employees" USING btree ("employee_number");
+CREATE UNIQUE INDEX IF NOT EXISTS "employees_email_uq" ON "employees" USING btree ("email");
+CREATE INDEX IF NOT EXISTS "employees_department_idx" ON "employees" USING btree ("department");
+CREATE INDEX IF NOT EXISTS "employees_status_idx" ON "employees" USING btree ("status");
