@@ -22,7 +22,7 @@ button:disabled { cursor: not-allowed; }
 .status { display: inline-flex; align-items: center; gap: .4rem; border-radius: 999px; padding: .28rem .55rem; font-size: .75rem; font-weight: 600; }
 .status span { width: .4rem; height: .4rem; border-radius: 999px; background: currentColor; }
 .status-active { background: #e9f6ed; color: #287344; }
-.status-on_leave { background: #fff4d8; color: #986515; }
+.status-on_leave { background: #feeceb; color: #b42318; }
 .status-inactive { background: #f0f2f1; color: #657169; }
 
 ::selection { background: #d7f06b; color: #173f2b; }
