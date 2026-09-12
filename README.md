@@ -34,6 +34,9 @@ To run the complete container stack, use `docker-compose up --build`. A fresh Po
 
 ## Google Compute Engine deployment
 
-Build and push the image to Artifact Registry, then run the container on a Compute Engine VM with `DATABASE_URL` supplied as a runtime secret. For production, use Cloud SQL for PostgreSQL (private IP or the Cloud SQL Auth Proxy), terminate TLS at an external Application Load Balancer, restrict port `3000` to the load balancer, and run migrations before each application rollout. Keep database credentials out of the image and VM startup script; use Secret Manager.
+The repository includes an idempotent Google Cloud bootstrap and release flow
+for Artifact Registry, Cloud SQL, Secret Manager, a containerized Compute Engine
+VM, migrations, health-checked rollback, and HTTPS load balancing. See the
+[Google Compute Engine deployment guide](deploy/gcp/README.md).
 
 Authentication and role-based authorization should be added before exposing employee data beyond a trusted development environment.
