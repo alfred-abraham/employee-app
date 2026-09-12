@@ -10,6 +10,7 @@ export const employeeInputSchema = z.object({
   lastName: z.string().trim().min(1).max(80),
   email: z.email().max(255).transform((value) => value.toLowerCase()),
   phone: optionalText,
+  company: z.string().trim().min(2).max(160),
   jobTitle: z.string().trim().min(2).max(120),
   department: z.string().trim().min(2).max(100),
   location: z.string().trim().min(2).max(120),

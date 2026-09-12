@@ -7,6 +7,7 @@ export const employees = pgTable("employees", {
   lastName: varchar("last_name", { length: 80 }).notNull(),
   email: varchar("email", { length: 255 }).notNull(),
   phone: varchar("phone", { length: 40 }),
+  company: varchar("company", { length: 160 }).notNull(),
   jobTitle: varchar("job_title", { length: 120 }).notNull(),
   department: varchar("department", { length: 100 }).notNull(),
   location: varchar("location", { length: 120 }).notNull(),

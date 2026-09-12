@@ -7,7 +7,7 @@ export async function listEmployees(filters: { search?: string; department?: str
   const clauses = [];
   if (filters.search) {
     const term = `%${filters.search}%`;
-    clauses.push(or(ilike(employees.firstName, term), ilike(employees.lastName, term), ilike(employees.email, term), ilike(employees.jobTitle, term))!);
+    clauses.push(or(ilike(employees.firstName, term), ilike(employees.lastName, term), ilike(employees.email, term), ilike(employees.company, term), ilike(employees.jobTitle, term))!);
   }
   if (filters.department) clauses.push(eq(employees.department, filters.department));
   if (filters.status) clauses.push(eq(employees.status, filters.status));
