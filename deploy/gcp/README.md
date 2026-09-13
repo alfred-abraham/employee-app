@@ -143,4 +143,6 @@ For a shared project, delete the resources in this order: forwarding rule
 instance `employee-app-postgres`, secret `employee-app-database-url`, Artifact
 Registry repository `employee-app`, and the `employee-app-vm` and
 `employee-app-build` service accounts. Cloud SQL deletion is irreversible; make
-and verify a final backup or export first.
+and verify a final backup or export first. Also delete the Cloud Build source
+bucket named after the project with a `_cloudbuild` suffix if it is no longer
+used by any other builds.
