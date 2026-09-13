@@ -5,7 +5,9 @@ readonly METADATA_URL="http://metadata.google.internal/computeMetadata/v1"
 readonly PROXY_CONTAINER="employee-cloud-sql-proxy"
 readonly APP_CONTAINER="employee-app"
 readonly ENV_FILE="/run/employee-app.env"
+readonly DOCKER_CONFIG_DIR="/var/lib/employee-app/docker"
 readonly PROXY_IMAGE="gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.25.4"
+readonly GOOGLE_LB_IPV4_RANGES=("35.191.0.0/16" "130.211.0.0/22")
 
 metadata() {
   curl --fail --silent --show-error \
@@ -38,6 +40,18 @@ DATABASE_URL_SECRET="$(attribute database-url-secret)"
 
 # Container-Optimized OS includes Docker and docker-credential-gcr. The VM's
 # service account is granted read-only Artifact Registry access.
+mkdir -p "$DOCKER_CONFIG_DIR"
+chmod 0700 "$DOCKER_CONFIG_DIR"
+export DOCKER_CONFIG="$DOCKER_CONFIG_DIR"
+
+# Container-Optimized OS also enforces a host-level firewall. Match the VPC
+# firewall rule so only Google load-balancer and health-check traffic can reach
+# the application directly on port 3000.
+for source_range in "${GOOGLE_LB_IPV4_RANGES[@]}"; do
+  if ! iptables -C INPUT -p tcp -s "$source_range" --dport 3000 -j ACCEPT >/dev/null 2>&1; then
+    iptables -A INPUT -p tcp -s "$source_range" --dport 3000 -j ACCEPT
+  fi
+done
 docker-credential-gcr configure-docker \
   --registries="${ARTIFACT_REGION}-docker.pkg.dev"
 docker pull "$APP_IMAGE"
@@ -71,7 +85,7 @@ docker run --detach \
   "$INSTANCE_CONNECTION_NAME"
 
 for attempt in {1..30}; do
-  if (echo >/dev/tcp/127.0.0.1/5432) >/dev/null 2>&1; then
+  if docker logs "$PROXY_CONTAINER" 2>&1 | grep --quiet "ready for new connections"; then
     break
   fi
   if [[ "$attempt" == "30" ]]; then

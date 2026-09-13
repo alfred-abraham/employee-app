@@ -55,6 +55,7 @@ if ([string]::IsNullOrWhiteSpace($PlainPassword)) { throw "Database password can
 $ServiceAccount = "$ServiceAccountName@$ProjectId.iam.gserviceaccount.com"
 $BuildServiceAccount = "$BuildServiceAccountName@$ProjectId.iam.gserviceaccount.com"
 $BuildServiceAccountResource = "projects/$ProjectId/serviceAccounts/$BuildServiceAccount"
+$CloudBuildSourceBucket = "${ProjectId}_cloudbuild"
 $ImageTag = (git rev-parse --short HEAD)
 $AppImage = "$Region-docker.pkg.dev/$ProjectId/$Repository/employee-app:$ImageTag"
 $MigrationImage = "$Region-docker.pkg.dev/$ProjectId/$Repository/employee-app-migrate:$ImageTag"
@@ -66,7 +67,8 @@ Invoke-Gcloud services enable `
   compute.googleapis.com `
   iam.googleapis.com `
   secretmanager.googleapis.com `
-  sqladmin.googleapis.com
+  sqladmin.googleapis.com `
+  storage.googleapis.com
 
 if (-not (Test-Gcloud artifacts repositories describe $Repository --location=$Region --project=$ProjectId)) {
   Invoke-Gcloud artifacts repositories create $Repository --repository-format=docker --location=$Region --project=$ProjectId
@@ -99,12 +101,22 @@ Invoke-Gcloud projects add-iam-policy-binding $ProjectId `
   --member="serviceAccount:$BuildServiceAccount" `
   --role=roles/logging.logWriter `
   --quiet
+if (-not (Test-Gcloud storage buckets describe "gs://$CloudBuildSourceBucket" --project=$ProjectId)) {
+  Invoke-Gcloud storage buckets create "gs://$CloudBuildSourceBucket" `
+    --project=$ProjectId `
+    --location=$Region `
+    --uniform-bucket-level-access
+}
+Invoke-Gcloud storage buckets add-iam-policy-binding "gs://$CloudBuildSourceBucket" `
+  --member="serviceAccount:$BuildServiceAccount" `
+  --role=roles/storage.objectViewer
 
 if (-not (Test-Gcloud sql instances describe $SqlInstance --project=$ProjectId)) {
   Invoke-Gcloud sql instances create $SqlInstance `
     --project=$ProjectId `
     --region=$Region `
     --database-version=POSTGRES_17 `
+    --edition=enterprise `
     --cpu=1 `
     --memory=3840MiB `
     --storage-type=SSD `
@@ -181,7 +193,7 @@ if (-not (Test-Gcloud compute firewall-rules describe employee-app-allow-load-ba
     --project=$ProjectId `
     --network=default `
     --allow=tcp:3000 `
-    --source-ranges=35.191.0.0/16,130.211.0.0/22 `
+    --source-ranges="35.191.0.0/16,130.211.0.0/22" `
     --target-tags=employee-app-backend
 }
 
