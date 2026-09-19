@@ -33,7 +33,8 @@ const people = [
 async function main() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL is required");
-  const sql = postgres(connectionString, { max: 1 });
+  const socketPath = process.env.DATABASE_SOCKET_PATH;
+  const sql = postgres(connectionString, { max: 1, ...(socketPath ? { host: socketPath } : {}) });
   try {
     for (const person of people) await sql`insert into employees (employee_number, first_name, last_name, email, company, job_title, department, location, status, start_date, manager) values (${person[0]}, ${person[1]}, ${person[2]}, ${person[3]}, ${company}, ${person[4]}, ${person[5]}, ${person[6]}, ${person[7]}, ${person[8]}, ${person[9]}) on conflict (employee_number) do nothing`;
     console.log("Seed data is ready.");

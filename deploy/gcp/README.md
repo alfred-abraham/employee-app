@@ -1,148 +1,147 @@
-# Google Compute Engine deployment
+# Google Cloud Run deployment
 
-This deployment runs the production Next.js image and Cloud SQL Auth Proxy as
-containers on a Container-Optimized OS Compute Engine VM. PostgreSQL runs in
-Cloud SQL, the database URL is read from Secret Manager at boot, images are
-stored in Artifact Registry, and an external Application Load Balancer is the
-only network path to application port `3000`.
+The production Next.js container runs on Cloud Run in `us-central1`. Cloud Run
+connects to the existing PostgreSQL instance through the managed Cloud SQL Unix
+socket, reads a pinned database URL version from Secret Manager, and receives
+public traffic only through the existing global external HTTPS load balancer.
 
-## What the automation creates
+The load balancer preserves the static IP, Cloud DNS record, custom domain, and
+Google-managed TLS certificate. Its backend is a regional serverless network
+endpoint group (NEG) that targets the Cloud Run service.
 
-- An Artifact Registry Docker repository and a dedicated least-privilege Cloud
-  Build service account for the release pipeline.
-- A Cloud SQL for PostgreSQL 17 instance with automated backups, seven retained
-  backups, storage auto-growth, and point-in-time recovery.
-- A dedicated VM service account with Artifact Registry Reader, Cloud SQL
-  Client, Secret Manager Secret Accessor, log writer, and metric writer roles.
-- A Container-Optimized OS VM that starts the Auth Proxy, applies migrations,
-  starts the app, and rolls back the app container after a failed health check.
-- A global external HTTPS load balancer with a Google-managed certificate.
-- A firewall rule that permits port `3000` only from Google load balancer and
-  health-check address ranges.
+## Resources
 
-The database credential is never committed, built into an image, or stored in
-VM metadata. The bootstrap command prompts for it and writes the resulting
-`DATABASE_URL` to Secret Manager.
+- Cloud Run service: `employee-app`
+- Cloud Run migration job: `employee-app-migrate`
+- Runtime service account: `employee-app-run`
+- Cloud SQL instance: `employee-app-postgres`
+- Cloud Run database secret: `employee-app-cloud-run-database-url`
+- Artifact Registry repository: `employee-app`
+- Serverless NEG: `employee-app-cloud-run-neg`
+- Global backend service: `employee-app-cloud-run-backend`
+- Existing URL map, HTTPS proxy, certificate, IP, and forwarding rule
 
-## Prerequisites
+The runtime service account has Cloud SQL Client and access to only the Cloud
+Run database secret. Credentials are never passed as command arguments, stored
+in images, or committed to source control.
 
-1. A Google Cloud project with billing enabled and permission to create IAM,
-   Compute Engine, Cloud SQL, Secret Manager, Artifact Registry, Cloud Build,
-   load-balancing, and DNS resources.
-2. A domain name whose DNS records you control.
-3. The [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) installed,
-   followed by `gcloud auth login`.
-4. PowerShell 7 or Windows PowerShell 5.1.
+## One-time migration from Compute Engine
 
-Cloud resources incur charges. Review the selected Cloud SQL and VM sizes before
-running the command.
-
-## First deployment
-
-From the repository root:
+From the repository root, run:
 
 ```powershell
-./deploy/gcp/bootstrap.ps1 `
-  -ProjectId "YOUR_PROJECT_ID" `
-  -Domain "employees.example.com" `
-  -Region "us-central1" `
-  -Zone "us-central1-a"
+./deploy/gcp/migrate-to-cloud-run.ps1 `
+  -ProjectId "employee-application-508420" `
+  -Domain "employees-example.com"
 ```
 
-The command prints the load balancer IP. Create an `A` record for the supplied
-domain pointing to that IP. Certificate provisioning can take several minutes
-after DNS propagates. Check it with:
+The command performs these operations in order:
+
+1. Enables Cloud Run and verifies the existing Cloud SQL instance.
+2. Creates the least-privilege Cloud Run service account.
+3. Copies the existing database credentials into a separate Cloud Run secret
+   without printing them and configures the managed Cloud SQL socket separately.
+4. Builds immutable application and migration images through Cloud Build.
+5. runs the migration image as a single-task Cloud Run Job.
+6. Deploys Cloud Run with a startup probe on `/api/health`, zero-to-five
+   instances, 80-request concurrency, one CPU, and 512 MiB of memory.
+7. Creates a serverless NEG and a separate Cloud Run backend service.
+8. Atomically changes the existing URL map from the VM backend to Cloud Run.
+9. Verifies HTTPS health and the expected 25 employee records.
+
+Until retirement, restore the VM backend with:
 
 ```powershell
-gcloud compute ssl-certificates describe employee-app-certificate `
-  --global --project YOUR_PROJECT_ID
+gcloud compute url-maps set-default-service employee-app-map `
+  --global `
+  --default-service=employee-app-backend `
+  --project=employee-application-508420
 ```
 
-The bootstrap is safe to rerun. It reuses existing named resources, rotates the
-database secret to the supplied password, builds a new immutable image tag, and
-keeps the firewall restricted to the load balancer.
+After the Cloud Run cutover is verified, retire the VM-only resources:
+
+```powershell
+./deploy/gcp/retire-vm.ps1 `
+  -ProjectId "employee-application-508420" `
+  -Domain "employees-example.com"
+```
+
+The retirement script has a high-impact confirmation prompt and independently
+checks the URL map, public health endpoint, and employee data before deletion.
+It removes only the old VM, unmanaged instance group, VM backend service, health
+check, firewall rule, VM database secret, and VM service account.
 
 ## Subsequent releases
 
-After tests pass and the desired Git commit is checked out:
+After tests pass and the desired commit is checked out:
 
 ```powershell
 ./deploy/gcp/deploy.ps1 `
-  -ProjectId "YOUR_PROJECT_ID" `
-  -Zone "us-central1-a"
+  -ProjectId "employee-application-508420"
 ```
 
-Cloud Build publishes both the minimal application image and a tools image.
-The VM restarts, pulls those exact commit-tagged images, starts the Auth Proxy,
-and applies all unapplied migrations before replacing the running app. A failed
-migration aborts the rollout; a failed `/api/health` check restores the previous
-app container.
+The release script builds commit-tagged images, updates and executes the
+migration job, then deploys a new Cloud Run revision. Cloud Run shifts traffic
+only after the revision passes its startup probe.
 
-To roll back later to images from a previously deployed commit, reuse their tag
-without rebuilding the current checkout:
+To reuse images that were already published:
 
 ```powershell
 ./deploy/gcp/deploy.ps1 `
-  -ProjectId "YOUR_PROJECT_ID" `
-  -Zone "us-central1-a" `
-  -Tag "PREVIOUS_COMMIT_TAG" `
+  -ProjectId "employee-application-508420" `
+  -Tag "COMMIT_TAG" `
   -SkipBuild
 ```
 
+## Rollback
+
+List revisions and route all service traffic to the last healthy one:
+
+```powershell
+gcloud run revisions list `
+  --service=employee-app `
+  --region=us-central1 `
+  --project=employee-application-508420
+
+gcloud run services update-traffic employee-app `
+  --region=us-central1 `
+  --project=employee-application-508420 `
+  --to-revisions=PREVIOUS_REVISION=100
+```
+
+Database migrations must remain backward-compatible with the previous revision.
+
 ## Operations
 
-Inspect startup and application logs:
+Verify the public application:
 
 ```powershell
-gcloud compute ssh employee-app --zone us-central1-a --project YOUR_PROJECT_ID `
-  --command "sudo journalctl -u google-startup-scripts.service -n 200"
-
-gcloud compute ssh employee-app --zone us-central1-a --project YOUR_PROJECT_ID `
-  --command "docker logs employee-app"
-
-gcloud compute ssh employee-app --zone us-central1-a --project YOUR_PROJECT_ID `
-  --command "docker logs employee-cloud-sql-proxy"
+curl.exe --fail https://employees-example.com/api/health
+curl.exe --fail https://employees-example.com/api/employees
 ```
 
-Verify health through the load balancer:
+Inspect service and migration logs:
 
 ```powershell
-curl.exe --fail https://employees.example.com/api/health
+gcloud run services logs read employee-app `
+  --region=us-central1 `
+  --project=employee-application-508420
+
+gcloud run jobs executions list `
+  --job=employee-app-migrate `
+  --region=us-central1 `
+  --project=employee-application-508420
 ```
 
-Cloud SQL backups and point-in-time recovery are enabled by bootstrap. Periodic
-restore tests should be performed in a separate Cloud SQL instance; a backup is
-not fully validated until it has been restored and the application health check
-passes against it.
+Cloud SQL backups and point-in-time recovery remain enabled. Cloud Run can
+scale to zero, but Cloud SQL, the external load balancer, Artifact Registry,
+Cloud DNS, and the registered domain continue to incur their own charges.
 
-## Security and production follow-ups
+## Security notes
 
-- The VM has a public address so it can reach Artifact Registry and Google APIs,
-  but no ingress rule exposes it directly. For a fully private VM, add Cloud NAT
-  and Private Google Access, then recreate the VM without an external address.
-- The Auth Proxy authenticates with the VM service account and encrypts the
-  connection to Cloud SQL. The database still uses its dedicated password from
-  Secret Manager.
-- This is a single-VM deployment. For higher availability, replace the unmanaged
-  group with a regional managed instance group and configure autoscaling and
-  autohealing. Multiple Next.js instances also require shared cache coordination
-  and a consistent Server Actions encryption key.
-- Add application authentication and authorization before making employee data
-  available outside a trusted environment.
-
-## Teardown
-
-If this app has its own Google Cloud project, deleting that project is the most
-reliable teardown because it also removes dependent resources and stops billing.
-For a shared project, delete the resources in this order: forwarding rule
-`employee-app-https`, HTTPS proxy `employee-app-https-proxy`, certificate
-`employee-app-certificate`, URL map `employee-app-map`, backend service
-`employee-app-backend`, health check `employee-app-health`, instance group
-`employee-app-backends`, VM `employee-app`, firewall rule
-`employee-app-allow-load-balancer`, global address `employee-app-ip`, Cloud SQL
-instance `employee-app-postgres`, secret `employee-app-database-url`, Artifact
-Registry repository `employee-app`, and the `employee-app-vm` and
-`employee-app-build` service accounts. Cloud SQL deletion is irreversible; make
-and verify a final backup or export first. Also delete the Cloud Build source
-bucket named after the project with a `_cloudbuild` suffix if it is no longer
-used by any other builds.
+- Ingress is restricted to `internal-and-cloud-load-balancing` and the default
+  Cloud Run URL is disabled, preventing direct bypass of the load balancer.
+- Public invocation is allowed only through the permitted ingress path.
+- Secret environment variables are pinned to a numeric Secret Manager version.
+- Application authentication and authorization should be added before employee
+  data is used outside a trusted or demonstration environment.
