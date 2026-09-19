@@ -5,7 +5,8 @@ import { join } from "node:path";
 async function main() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL is required");
-  const sql = postgres(connectionString, { max: 1 });
+  const socketPath = process.env.DATABASE_SOCKET_PATH;
+  const sql = postgres(connectionString, { max: 1, ...(socketPath ? { host: socketPath } : {}) });
   try {
     await sql`create table if not exists app_migrations (name text primary key, applied_at timestamptz not null default now())`;
     for (const name of (await readdir("drizzle")).filter((file) => file.endsWith(".sql")).sort()) {
