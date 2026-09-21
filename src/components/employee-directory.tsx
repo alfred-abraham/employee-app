@@ -1,7 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Building2, CalendarDays, ChevronDown, CircleAlert, Edit3, LayoutDashboard, LoaderCircle, Mail, MapPin, MoreHorizontal, Plus, Search, Trash2, Users, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Building2, CalendarDays, ChevronDown, CircleAlert, Edit3, LayoutDashboard, LoaderCircle, LogOut, Mail, MapPin, MoreHorizontal, Plus, Search, Trash2, Users, X } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 
 type Employee = {
   id: string; employeeNumber: string; firstName: string; lastName: string; email: string; phone: string | null;
@@ -15,7 +17,8 @@ const emptyForm: FormState = { employeeNumber: "", firstName: "", lastName: "", 
 const statusLabels = { active: "Active", on_leave: "On leave", inactive: "Inactive" };
 const initials = (employee: Employee) => `${employee.firstName[0]}${employee.lastName[0]}`;
 
-export function EmployeeDirectory() {
+export function EmployeeDirectory({ user }: { user: { name: string; email: string } }) {
+  const router = useRouter();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, departments: 0, onLeave: 0 });
   const [loading, setLoading] = useState(true);
@@ -26,6 +29,14 @@ export function EmployeeDirectory() {
   const [editing, setEditing] = useState<Employee | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function signOut() {
+    setSigningOut(true);
+    await authClient.signOut();
+    router.replace("/login");
+    router.refresh();
+  }
 
   async function loadEmployees() {
     setLoading(true); setError("");
@@ -91,7 +102,7 @@ export function EmployeeDirectory() {
       </aside>
 
       <main className="min-w-0">
-        <header className="border-b border-[#dfe4e1] bg-white px-5 py-4 sm:px-8"><div className="mx-auto flex max-w-7xl items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#568067]">People operations</p><h1 className="mt-1 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">Employee directory</h1></div><button onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-[#173f2b] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#24583d]"><Plus size={17}/> <span className="hidden sm:inline">Add employee</span></button></div></header>
+        <header className="border-b border-[#dfe4e1] bg-white px-5 py-4 sm:px-8"><div className="mx-auto flex max-w-7xl items-center justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#568067]">People operations</p><h1 className="mt-1 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">Employee directory</h1></div><div className="flex items-center gap-2 sm:gap-3"><div className="hidden text-right md:block"><p className="text-sm font-semibold">{user.name}</p><p className="text-xs text-[#7a857e]">{user.email}</p></div><button type="button" onClick={() => void signOut()} disabled={signingOut} aria-label="Log out" className="rounded-lg border border-[#d6dcd8] bg-white p-2.5 text-[#536058] transition hover:bg-[#f2f5f3] disabled:opacity-50"><LogOut size={17}/></button><button onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-[#173f2b] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#24583d]"><Plus size={17}/> <span className="hidden sm:inline">Add employee</span></button></div></div></header>
         <div className="mx-auto max-w-7xl p-5 sm:p-8">
           {error && <div className="mb-5 flex items-center justify-between rounded-xl border border-[#efc9c5] bg-[#fff5f3] px-4 py-3 text-sm text-[#9c3028]"><span className="flex items-center gap-2"><CircleAlert size={17}/>{error}</span><button aria-label="Dismiss error" onClick={() => setError("")}><X size={17}/></button></div>}
           <section className="grid gap-4 sm:grid-cols-3">

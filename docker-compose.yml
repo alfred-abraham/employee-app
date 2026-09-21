@@ -43,6 +43,10 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://employee_app:${POSTGRES_PASSWORD:-local-development-only}@db:5432/employee_app
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-local-development-secret-change-before-production}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     ports:
       - "3000:3000"
     depends_on:

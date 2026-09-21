@@ -38,8 +38,13 @@ if ($LASTEXITCODE -ne 0 -or $DefaultService -notmatch "/backendServices/$([regex
 }
 $Health = Invoke-RestMethod -Uri "https://$Domain/api/health" -TimeoutSec 20
 if ($Health.status -ne "ok") { throw "The public Cloud Run health check failed. VM retirement is blocked." }
-$Employees = Invoke-RestMethod -Uri "https://$Domain/api/employees" -TimeoutSec 20
-if ($Employees.stats.total -lt 25) { throw "The expected employee data was not returned. VM retirement is blocked." }
+$EmployeeApiProtected = $false
+try {
+  Invoke-RestMethod -Uri "https://$Domain/api/employees" -TimeoutSec 20
+} catch {
+  if ([int]$_.Exception.Response.StatusCode -eq 401) { $EmployeeApiProtected = $true }
+}
+if (-not $EmployeeApiProtected) { throw "The employee API did not require authentication. VM retirement is blocked." }
 
 if (-not $PSCmdlet.ShouldProcess(
   "VM $VmName and its dedicated backend, health check, instance group, firewall rule, secret, and service account",

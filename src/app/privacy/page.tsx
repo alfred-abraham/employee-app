@@ -1,0 +1,61 @@
+import Link from "next/link";
+
+export default function PrivacyPage() {
+  return (
+    <main className="mx-auto min-h-screen max-w-3xl px-6 py-12 text-slate-800">
+      <Link href="/" className="text-sm font-semibold text-emerald-700 hover:underline">
+        ← Employee App
+      </Link>
+      <article className="mt-8 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-950">Privacy Policy</h1>
+        <p className="mt-2 text-sm text-slate-500">Effective September 21, 2026</p>
+
+        <div className="mt-8 space-y-7 leading-7">
+          <section>
+            <h2 className="text-xl font-semibold text-slate-950">Information we collect</h2>
+            <p className="mt-2">
+              Employee App stores the name and email address associated with your account. If you
+              sign in with Google, Google provides basic profile information needed to identify your
+              account. The app also stores employee directory records that authorized users create
+              or update.
+            </p>
+          </section>
+          <section>
+            <h2 className="text-xl font-semibold text-slate-950">How information is used</h2>
+            <p className="mt-2">
+              Account information is used only to authenticate you, maintain your session, protect
+              employee data, and operate the directory. We do not sell personal information or use
+              it for advertising.
+            </p>
+          </section>
+          <section>
+            <h2 className="text-xl font-semibold text-slate-950">Storage and sharing</h2>
+            <p className="mt-2">
+              Data is stored in Google Cloud infrastructure. Information is shared with service
+              providers only as needed to host, secure, and authenticate the application, or when
+              required by law.
+            </p>
+          </section>
+          <section>
+            <h2 className="text-xl font-semibold text-slate-950">Your choices</h2>
+            <p className="mt-2">
+              You may stop using the app at any time and revoke Google account access from your
+              Google Account settings. Contact the application owner to request access, correction,
+              or deletion of your account data.
+            </p>
+          </section>
+          <section>
+            <h2 className="text-xl font-semibold text-slate-950">Contact</h2>
+            <p className="mt-2">
+              Privacy questions can be sent to{" "}
+              <a className="font-medium text-emerald-700 hover:underline" href="mailto:alfred.f.abraham@gmail.com">
+                alfred.f.abraham@gmail.com
+              </a>
+              .
+            </p>
+          </section>
+        </div>
+      </article>
+    </main>
+  );
+}
