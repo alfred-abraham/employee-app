@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { EmployeeDirectory } from "@/components/employee-directory";
+import { getCurrentSession } from "@/lib/auth-session";
 
 const title = "PeopleCore | Employee Directory";
 const description = "Employee operations, clearly organized.";
@@ -19,6 +21,9 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function Home() {
-  return <EmployeeDirectory />;
+export default async function Home() {
+  const session = await getCurrentSession();
+  if (!session) redirect("/login?callbackURL=%2F");
+
+  return <EmployeeDirectory user={{ name: session.user.name, email: session.user.email }} />;
 }

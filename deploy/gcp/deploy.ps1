@@ -8,7 +8,13 @@ param(
   [string] $Repository = "employee-app",
   [string] $RuntimeServiceAccountName = "employee-app-run",
   [string] $BuildServiceAccountName = "employee-app-build",
+  [string] $Network = "default",
+  [string] $Subnet = "default",
   [string] $SecretName = "employee-app-cloud-run-database-url",
+  [string] $AuthSecretName = "employee-app-better-auth-secret",
+  [string] $GoogleClientSecretName = "employee-app-google-client-secret",
+  [Parameter(Mandatory)] [ValidatePattern('^https://')] [string] $PublicUrl,
+  [Parameter(Mandatory)] [string] $GoogleClientId,
   [string] $Tag = (git rev-parse --short HEAD),
   [switch] $SkipBuild
 )
@@ -42,6 +48,13 @@ $MigrationImage = "$Region-docker.pkg.dev/$ProjectId/$Repository/employee-app-mi
 $ConnectionName = Read-GcloudValue sql instances describe $SqlInstance --project=$ProjectId --format="value(connectionName)"
 $SecretVersion = Read-GcloudValue secrets versions list $SecretName --project=$ProjectId --filter="state=ENABLED" --sort-by="~createTime" --limit=1 --format="value(name)"
 $SecretReference = "$SecretName`:$SecretVersion"
+$AuthSecretVersion = Read-GcloudValue secrets versions list $AuthSecretName --project=$ProjectId --filter="state=ENABLED" --sort-by="~createTime" --limit=1 --format="value(name)"
+$AuthSecretReference = "$AuthSecretName`:$AuthSecretVersion"
+$GoogleClientSecretVersion = Read-GcloudValue secrets versions list $GoogleClientSecretName --project=$ProjectId --filter="state=ENABLED" --sort-by="~createTime" --limit=1 --format="value(name)"
+$GoogleClientSecretReference = "$GoogleClientSecretName`:$GoogleClientSecretVersion"
+
+Invoke-Gcloud secrets add-iam-policy-binding $AuthSecretName --project=$ProjectId --member="serviceAccount:$RuntimeServiceAccount" --role=roles/secretmanager.secretAccessor --quiet
+Invoke-Gcloud secrets add-iam-policy-binding $GoogleClientSecretName --project=$ProjectId --member="serviceAccount:$RuntimeServiceAccount" --role=roles/secretmanager.secretAccessor --quiet
 
 if (-not $SkipBuild) {
   Write-Host "Building and publishing $Tag through Cloud Build..."
@@ -56,6 +69,9 @@ Invoke-Gcloud run jobs deploy $MigrationJobName `
   --region=$Region `
   --image=$MigrationImage `
   --service-account=$RuntimeServiceAccount `
+  --network=$Network `
+  --subnet=$Subnet `
+  --vpc-egress=private-ranges-only `
   --set-cloudsql-instances=$ConnectionName `
   --set-secrets="DATABASE_URL=$SecretReference" `
   --set-env-vars="DATABASE_SOCKET_PATH=/cloudsql/$ConnectionName" `
@@ -77,9 +93,12 @@ Invoke-Gcloud run deploy $ServiceName `
   --region=$Region `
   --image=$AppImage `
   --service-account=$RuntimeServiceAccount `
+  --network=$Network `
+  --subnet=$Subnet `
+  --vpc-egress=private-ranges-only `
   --set-cloudsql-instances=$ConnectionName `
-  --set-secrets="DATABASE_URL=$SecretReference" `
-  --set-env-vars="DATABASE_SOCKET_PATH=/cloudsql/$ConnectionName" `
+  --set-secrets="DATABASE_URL=$SecretReference,BETTER_AUTH_SECRET=$AuthSecretReference,GOOGLE_CLIENT_SECRET=$GoogleClientSecretReference" `
+  --set-env-vars="DATABASE_SOCKET_PATH=/cloudsql/$ConnectionName,BETTER_AUTH_URL=$PublicUrl,GOOGLE_CLIENT_ID=$GoogleClientId" `
   --port=3000 `
   --ingress=internal-and-cloud-load-balancing `
   --allow-unauthenticated `

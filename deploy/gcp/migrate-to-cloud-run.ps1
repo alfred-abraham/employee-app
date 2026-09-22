@@ -10,6 +10,9 @@ param(
   [string] $BuildServiceAccountName = "employee-app-build",
   [string] $VmSecretName = "employee-app-database-url",
   [string] $CloudRunSecretName = "employee-app-cloud-run-database-url",
+  [string] $AuthSecretName = "employee-app-better-auth-secret",
+  [string] $GoogleClientSecretName = "employee-app-google-client-secret",
+  [Parameter(Mandatory)] [string] $GoogleClientId,
   [string] $ServerlessNegName = "employee-app-cloud-run-neg",
   [string] $CloudRunBackendName = "employee-app-cloud-run-backend",
   [string] $UrlMapName = "employee-app-map",
@@ -94,6 +97,10 @@ $DeployParameters = @{
   RuntimeServiceAccountName = $RuntimeServiceAccountName
   BuildServiceAccountName = $BuildServiceAccountName
   SecretName = $CloudRunSecretName
+  AuthSecretName = $AuthSecretName
+  GoogleClientSecretName = $GoogleClientSecretName
+  PublicUrl = "https://$Domain"
+  GoogleClientId = $GoogleClientId
   Tag = $Tag
   SkipBuild = $SkipBuild
 }
@@ -126,8 +133,13 @@ for ($Attempt = 1; $Attempt -le 30; $Attempt++) {
 if (-not $Healthy) {
   throw "Cloud Run did not become healthy through $HealthUrl. Restore the previous backend with the URL map command documented in deploy/gcp/README.md."
 }
-$Employees = Invoke-RestMethod -Uri $EmployeesUrl -TimeoutSec 20
-if ($Employees.stats.total -lt 25) { throw "Cloud Run is healthy, but the expected employee data was not returned." }
+$EmployeeApiProtected = $false
+try {
+  Invoke-RestMethod -Uri $EmployeesUrl -TimeoutSec 20
+} catch {
+  if ([int]$_.Exception.Response.StatusCode -eq 401) { $EmployeeApiProtected = $true }
+}
+if (-not $EmployeeApiProtected) { throw "Cloud Run is healthy, but the employee API did not require authentication." }
 
-Write-Host "Cloud Run cutover succeeded with $($Employees.stats.total) employee records."
+Write-Host "Cloud Run cutover succeeded and the employee API requires authentication."
 Write-Host "Run deploy/gcp/retire-vm.ps1 only after you are satisfied with the Cloud Run deployment."
