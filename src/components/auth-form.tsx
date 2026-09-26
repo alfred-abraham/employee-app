@@ -12,20 +12,26 @@ type AuthFormProps = {
   callbackURL: string;
   googleEnabled: boolean;
   registered?: boolean;
+  verified?: boolean;
+  verificationError?: boolean;
   oauthError?: boolean;
 };
 
-export function AuthForm({ mode, callbackURL, googleEnabled, registered = false, oauthError = false }: AuthFormProps) {
+export function AuthForm({ mode, callbackURL, googleEnabled, registered = false, verified = false, verificationError = false, oauthError = false }: AuthFormProps) {
   const isRegister = mode === "register";
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
-  const [error, setError] = useState(oauthError ? "Google sign-in could not be completed. Please try again." : "");
-  const [busy, setBusy] = useState<"email" | "google" | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(registered || verificationError);
+  const [resendMessage, setResendMessage] = useState("");
+  const [error, setError] = useState(oauthError ? "Google sign-in could not be completed. Please try again." : verificationError ? "This verification link is invalid, expired, or already used. Enter your email to request a new link." : "");
+  const [busy, setBusy] = useState<"email" | "google" | "resend" | null>(null);
 
   const destinationQuery = `?callbackURL=${encodeURIComponent(callbackURL)}`;
+  const verificationCallbackURL = `/login?verified=1&callbackURL=${encodeURIComponent(callbackURL)}`;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -41,18 +47,50 @@ export function AuthForm({ mode, callbackURL, googleEnabled, registered = false,
     setBusy("email");
     try {
       if (isRegister) {
-        const result = await authClient.signUp.email({ name: name.trim(), email: normalizedEmail, password });
+        const result = await authClient.signUp.email({ name: name.trim(), email: normalizedEmail, password, callbackURL: verificationCallbackURL });
         if (result.error) throw new Error(result.error.message);
-        router.replace(`/login?registered=1&callbackURL=${encodeURIComponent(callbackURL)}`);
+        setPassword("");
+        setConfirmation("");
+        setSubmitted(true);
+        setBusy(null);
         return;
       }
 
       const result = await authClient.signIn.email({ email: normalizedEmail, password, callbackURL });
-      if (result.error) throw new Error("invalid");
+      if (result.error) {
+        if (result.error.code === "EMAIL_NOT_VERIFIED") {
+          setNeedsVerification(true);
+          setError("Verify your email address before signing in. You can request a new link below.");
+          setBusy(null);
+          return;
+        }
+        throw new Error("invalid");
+      }
       router.replace(callbackURL);
       router.refresh();
     } catch {
       setError(isRegister ? "We could not create the account. Check the details and try again." : "Email or password is incorrect.");
+      if (isRegister) setNeedsVerification(true);
+      setBusy(null);
+    }
+  }
+
+  async function resendVerification() {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setError("Enter your email address to request a new link.");
+      return;
+    }
+    setError("");
+    setBusy("resend");
+    try {
+      const result = await authClient.sendVerificationEmail({ email: normalizedEmail, callbackURL: verificationCallbackURL });
+      setResendMessage(result.error
+        ? "We could not send a verification link right now. Please try again later."
+        : "If this address has an unverified account, a new link is on its way. Check your inbox and spam folder.");
+    } catch {
+      setResendMessage("We could not send a verification link right now. Please try again later.");
+    } finally {
       setBusy(null);
     }
   }
@@ -86,16 +124,23 @@ export function AuthForm({ mode, callbackURL, googleEnabled, registered = false,
             <h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em]">{isRegister ? "Join PeopleCore" : "Sign in to your workspace"}</h2>
             <p className="mt-2 text-sm leading-6 text-[#738078]">{isRegister ? "Use your work email or continue with Google." : "Access the employee directory with your account."}</p>
 
-            {registered && <div className="mt-5 rounded-xl border border-[#bcd8c5] bg-[#eef8f1] px-4 py-3 text-sm text-[#27613b]">If the email was available, your account is ready. Sign in to continue.</div>}
+            {registered && <div className="mt-5 rounded-xl border border-[#bcd8c5] bg-[#eef8f1] px-4 py-3 text-sm text-[#27613b]">Check your inbox for a verification link before signing in.</div>}
+            {verified && <div className="mt-5 rounded-xl border border-[#bcd8c5] bg-[#eef8f1] px-4 py-3 text-sm text-[#27613b]">Email verified. You can sign in now.</div>}
+            {submitted && <div className="mt-5 rounded-xl border border-[#bcd8c5] bg-[#eef8f1] px-4 py-3 text-sm text-[#27613b]">If this address is available, we sent a verification link. Check your inbox and spam folder, then sign in after verifying.</div>}
             {error && <div role="alert" className="mt-5 rounded-xl border border-[#efc9c5] bg-[#fff5f3] px-4 py-3 text-sm text-[#9c3028]">{error}</div>}
 
-            <form onSubmit={submit} className="mt-7 space-y-4">
+            {!submitted && <form onSubmit={submit} className="mt-7 space-y-4">
               {isRegister && <AuthField label="Full name" name="name" autoComplete="name" value={name} onChange={setName} icon={UserRound} />}
               <AuthField label="Email address" name="email" type="email" autoComplete="email" value={email} onChange={setEmail} icon={Mail} />
               <AuthField label="Password" name="password" type="password" autoComplete={isRegister ? "new-password" : "current-password"} value={password} onChange={setPassword} icon={LockKeyhole} hint={isRegister ? passwordPolicy.description : undefined} />
               {isRegister && <AuthField label="Confirm password" name="confirmation" type="password" autoComplete="new-password" value={confirmation} onChange={setConfirmation} icon={LockKeyhole} />}
               <button disabled={busy !== null} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#173f2b] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#24583d] disabled:cursor-wait disabled:opacity-65">{busy === "email" ? <LoaderCircle className="animate-spin" size={17}/> : <ArrowRight size={17}/>} {isRegister ? "Create account" : "Sign in"}</button>
-            </form>
+            </form>}
+
+            {(submitted || needsVerification) && <div className="mt-5">
+              <button type="button" onClick={() => void resendVerification()} disabled={busy !== null} className="text-sm font-semibold text-[#24583d] underline disabled:opacity-50">{busy === "resend" ? "Sending…" : "Resend verification email"}</button>
+              {resendMessage && <p role="status" className="mt-2 text-sm text-[#435047]">{resendMessage}</p>}
+            </div>}
 
             <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-[0.14em] text-[#98a29b]"><span className="h-px flex-1 bg-[#e1e6e2]"/>or<span className="h-px flex-1 bg-[#e1e6e2]"/></div>
             <button type="button" onClick={() => void signInWithGoogle()} disabled={busy !== null || !googleEnabled} className="flex w-full items-center justify-center gap-3 rounded-xl border border-[#d5dcd7] bg-white px-4 py-3 text-sm font-semibold transition hover:bg-[#f7f9f8] disabled:cursor-not-allowed disabled:opacity-50"><span className="grid size-5 place-items-center rounded-full bg-white font-bold text-[#4285f4]">G</span>{busy === "google" ? "Connecting to Google…" : "Continue with Google"}</button>

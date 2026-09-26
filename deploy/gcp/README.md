@@ -19,6 +19,7 @@ endpoint group (NEG) that targets the Cloud Run service.
 - Cloud Run database secret: `employee-app-cloud-run-database-url`
 - Better Auth secret: `employee-app-better-auth-secret`
 - Google OAuth client secret: `employee-app-google-client-secret`
+- Resend API key: `employee-app-resend-api-key`
 - Artifact Registry repository: `employee-app`
 - Serverless NEG: `employee-app-cloud-run-neg`
 - Global backend service: `employee-app-cloud-run-backend`
@@ -28,8 +29,8 @@ The runtime service account has Cloud SQL Client and access to only the Cloud
 Run database and authentication secrets. Credentials are never passed as
 command arguments, stored in images, or committed to source control.
 
-Before the first authenticated deployment, create the Better Auth and Google
-OAuth client secrets in Secret Manager. Add secret values from temporary files
+Before the first authenticated deployment, create the Better Auth, Google
+OAuth client, and Resend API key secrets in Secret Manager. Add secret values from temporary files
 or the Cloud Console so the values do not appear in shell history. Configure the
 Google OAuth web client with `https://<DOMAIN>` as an authorized origin and
 `https://<DOMAIN>/api/auth/callback/google` as an authorized redirect URI.
@@ -42,7 +43,8 @@ From the repository root, run:
 ./deploy/gcp/migrate-to-cloud-run.ps1 `
   -ProjectId "employee-application-508420" `
   -Domain "employees-example.com" `
-  -GoogleClientId "YOUR_GOOGLE_CLIENT_ID"
+  -GoogleClientId "YOUR_GOOGLE_CLIENT_ID" `
+  -VerificationEmailFrom "PeopleCore <verify@your-verified-domain.com>"
 ```
 
 The command performs these operations in order:
@@ -90,7 +92,8 @@ After tests pass and the desired commit is checked out:
 ./deploy/gcp/deploy.ps1 `
   -ProjectId "employee-application-508420" `
   -PublicUrl "https://employees-example.com" `
-  -GoogleClientId "YOUR_GOOGLE_CLIENT_ID"
+  -GoogleClientId "YOUR_GOOGLE_CLIENT_ID" `
+  -VerificationEmailFrom "PeopleCore <verify@your-verified-domain.com>"
 ```
 
 The release script builds commit-tagged images, updates and executes the
