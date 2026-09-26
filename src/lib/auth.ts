@@ -6,6 +6,7 @@ import { betterAuth } from "better-auth/minimal";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { isPasswordAllowed, passwordPolicy } from "@/lib/auth-validation";
+import { consumeVerificationToken, hasPendingVerificationToken, sendAccountVerificationEmail, verificationLifetimeSeconds } from "@/lib/verification-email";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -22,14 +23,31 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    requireEmailVerification: true,
     minPasswordLength: passwordPolicy.minLength,
     maxPasswordLength: passwordPolicy.maxLength,
     autoSignIn: false,
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    sendOnSignIn: false,
+    autoSignInAfterVerification: false,
+    expiresIn: verificationLifetimeSeconds,
+    async sendVerificationEmail({ user, url, token }) {
+      await sendAccountVerificationEmail(user, url, token);
+    },
+    async beforeEmailVerification(user, request) {
+      const token = request ? new URL(request.url).searchParams.get("token") : null;
+      if (!token || !await consumeVerificationToken(user.id, token)) {
+        throw new APIError("UNAUTHORIZED", { code: "INVALID_TOKEN", message: "Verification link has expired or was already used." });
+      }
+    },
   },
   socialProviders: isGoogleAuthConfigured ? {
     google: {
       clientId: googleClientId!,
       clientSecret: googleClientSecret!,
+      requireEmailVerification: true,
     },
   } : {},
   account: {
@@ -37,6 +55,7 @@ export const auth = betterAuth({
     accountLinking: {
       enabled: true,
       allowDifferentEmails: false,
+      requireLocalEmailVerified: true,
     },
   },
   session: {
@@ -51,10 +70,18 @@ export const auth = betterAuth({
     customRules: {
       "/sign-in/email": { window: 60, max: 5 },
       "/sign-up/email": { window: 60 * 60, max: 5 },
+      "/send-verification-email": { window: 60 * 60, max: 3 },
     },
   },
   hooks: {
     before: createAuthMiddleware(async (context) => {
+      if (context.path === "/verify-email") {
+        const token = context.request ? new URL(context.request.url).searchParams.get("token") : null;
+        if (!token || !await hasPendingVerificationToken(token)) {
+          throw context.redirect("/login?verification=invalid");
+        }
+        return;
+      }
       if (context.path !== "/sign-up/email") return;
       if (!isPasswordAllowed(context.body?.password)) {
         throw new APIError("BAD_REQUEST", {

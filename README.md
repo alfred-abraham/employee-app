@@ -34,13 +34,17 @@ Copy the authentication settings from `.env.example` into `.env.local` for local
 - `BETTER_AUTH_SECRET`: a random secret of at least 32 characters. Generate one with `openssl rand -base64 32`.
 - `BETTER_AUTH_URL`: the public origin of this application, with no trailing slash (for example, `http://localhost:3000` locally or `https://employees.example.com` in production).
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`: OAuth 2.0 web application credentials from Google Cloud. If omitted, email/password login remains available and the Google button is disabled.
+- `RESEND_API_KEY`: server-side Resend API key for verification mail. Configure a verified sending domain in Resend.
+- `VERIFICATION_EMAIL_FROM`: sender address on that verified domain, for example `PeopleCore <verify@example.com>`.
 
 For Google login, create an OAuth 2.0 **Web application** in Google Cloud Console and configure:
 
 - Authorized JavaScript origin: the value of `BETTER_AUTH_URL`.
 - Authorized redirect URI: `<BETTER_AUTH_URL>/api/auth/callback/google`.
 
-Run `npm run db:migrate` after pulling authentication changes. Passwords must be 12–128 characters and contain uppercase, lowercase, numeric, and symbol characters. They are hashed by Better Auth with scrypt and are never stored in plaintext. Registration uses a generic completion response so it does not disclose whether an email is already registered. A Google identity with the same verified email is linked to the existing user; unverified or different-email identities are not implicitly linked.
+Run `npm run db:migrate` after pulling authentication changes. Passwords must be 12–128 characters and contain uppercase, lowercase, numeric, and symbol characters. Better Auth hashes them with salted scrypt before storing the hash in `account.password`; plaintext passwords are never stored. Email/password registration sends a one-hour, single-use verification link, and sign-in is blocked until verification. Resend is limited to three requests per hour per client by Better Auth. Registration and resend use generic completion messages so they do not disclose whether an email is registered. A Google identity with the same verified email can be linked to the existing user; unverified or different-email identities are not implicitly linked.
+
+Set up the sender before enabling registration in production. If delivery fails after an account is created, the user can request another link from the sign-in page. Existing email/password accounts with `email_verified = false` will need to verify before their next sign-in. Existing credentials created by Better Auth remain valid; if any credentials were imported from another system, audit them before rollout and reset any whose hash format is unknown. The verification flow uses the existing `verification` table and needs no new migration.
 
 Production deployments must provide all authentication secrets at runtime and use HTTPS. Session cookies are HTTP-only and become secure cookies in production.
 

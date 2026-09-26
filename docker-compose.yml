@@ -47,6 +47,8 @@ services:
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      VERIFICATION_EMAIL_FROM: ${VERIFICATION_EMAIL_FROM:-}
     ports:
       - "3000:3000"
     depends_on:

@@ -12,6 +12,8 @@ param(
   [string] $CloudRunSecretName = "employee-app-cloud-run-database-url",
   [string] $AuthSecretName = "employee-app-better-auth-secret",
   [string] $GoogleClientSecretName = "employee-app-google-client-secret",
+  [string] $EmailApiSecretName = "employee-app-resend-api-key",
+  [Parameter(Mandatory)] [string] $VerificationEmailFrom,
   [Parameter(Mandatory)] [string] $GoogleClientId,
   [string] $ServerlessNegName = "employee-app-cloud-run-neg",
   [string] $CloudRunBackendName = "employee-app-cloud-run-backend",
@@ -99,6 +101,8 @@ $DeployParameters = @{
   SecretName = $CloudRunSecretName
   AuthSecretName = $AuthSecretName
   GoogleClientSecretName = $GoogleClientSecretName
+  EmailApiSecretName = $EmailApiSecretName
+  VerificationEmailFrom = $VerificationEmailFrom
   PublicUrl = "https://$Domain"
   GoogleClientId = $GoogleClientId
   Tag = $Tag
