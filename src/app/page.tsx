@@ -26,5 +26,5 @@ export default async function Home() {
   const session = await getCurrentSession();
   if (!session) redirect("/login?callbackURL=%2F");
 
-  return <Suspense fallback={<div className="p-8 text-sm text-[#66736b]">Loading directory…</div>}><EmployeeDirectory user={{ name: session.user.name, email: session.user.email }} /></Suspense>;
+  return <Suspense fallback={<div className="p-8 text-sm text-[#66736b]">Loading directory…</div>}><EmployeeDirectory user={{ name: session.user.name, email: session.user.email, image: session.user.image ?? null }} /></Suspense>;
 }

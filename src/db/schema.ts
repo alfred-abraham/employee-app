@@ -1,5 +1,12 @@
 import { bigint, boolean, date, index, integer, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 
+export const departments = pgTable("departments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull().unique(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const employees = pgTable("employees", {
   id: uuid("id").defaultRandom().primaryKey(),
   employeeNumber: varchar("employee_number", { length: 24 }).notNull(),
@@ -9,7 +16,8 @@ export const employees = pgTable("employees", {
   phone: varchar("phone", { length: 40 }),
   company: varchar("company", { length: 160 }).notNull(),
   jobTitle: varchar("job_title", { length: 120 }).notNull(),
-  department: varchar("department", { length: 100 }).notNull(),
+  department: varchar("department", { length: 100 }).notNull().references(() => departments.name, { onUpdate: "cascade", onDelete: "restrict" }),
+  userId: text("user_id").unique().references(() => user.id, { onDelete: "set null" }),
   location: varchar("location", { length: 120 }).notNull(),
   status: varchar("status", { length: 24 }).notNull().default("active"),
   startDate: date("start_date").notNull(),
@@ -27,6 +35,30 @@ export const employees = pgTable("employees", {
 export type Employee = typeof employees.$inferSelect;
 export type NewEmployee = typeof employees.$inferInsert;
 
+export const timeAway = pgTable("time_away", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  type: varchar("type", { length: 24 }).notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  status: varchar("status", { length: 24 }).notNull().default("confirmed"),
+  note: varchar("note", { length: 500 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("time_away_employee_dates_idx").on(table.employeeId, table.startDate, table.endDate), index("time_away_status_dates_idx").on(table.status, table.startDate, table.endDate)]);
+
+export const employeeHomeAddress = pgTable("employee_home_address", {
+  employeeId: uuid("employee_id").primaryKey().references(() => employees.id, { onDelete: "cascade" }),
+  line1: varchar("line1", { length: 160 }).notNull(),
+  line2: varchar("line2", { length: 160 }),
+  city: varchar("city", { length: 100 }).notNull(),
+  region: varchar("region", { length: 100 }).notNull(),
+  postalCode: varchar("postal_code", { length: 30 }).notNull(),
+  country: varchar("country", { length: 100 }).notNull(),
+  placeId: varchar("place_id", { length: 255 }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -34,6 +66,12 @@ export const user = pgTable("user", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const profilePhotos = pgTable("profile_photos", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  data: text("data").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

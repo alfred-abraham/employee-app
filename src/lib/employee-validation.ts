@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const employeeStatuses = ["active", "on_leave", "inactive"] as const;
+export const employeeStatuses = ["active", "inactive"] as const;
 
 const optionalText = z.string().trim().max(160).optional().nullable().transform((value) => value || null);
 
