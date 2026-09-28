@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Building2, CalendarDays, ChevronDown, CircleAlert, Edit3, LayoutDashboard, LoaderCircle, LogOut, Mail, MapPin, MoreHorizontal, Plus, Search, Trash2, Users, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
@@ -11,6 +11,8 @@ type Employee = {
   startDate: string; manager: string | null; createdAt: string; updatedAt: string;
 };
 type Stats = { total: number; departments: number; onLeave: number };
+type Pagination = { page: number; pageSize: number; total: number; totalPages: number; hasPrevious: boolean; hasNext: boolean };
+type DirectoryResponse = { employees: Employee[]; stats: Stats; pagination: Pagination; departments: string[] };
 type FormState = Omit<Employee, "id" | "createdAt" | "updatedAt">;
 
 const emptyForm: FormState = { employeeNumber: "", firstName: "", lastName: "", email: "", phone: "", company: "", jobTitle: "", department: "", location: "", status: "active", startDate: new Date().toISOString().slice(0, 10), manager: "" };
@@ -19,17 +21,28 @@ const initials = (employee: Employee) => `${employee.firstName[0]}${employee.las
 
 export function EmployeeDirectory({ user }: { user: { name: string; email: string } }) {
   const router = useRouter();
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, departments: 0, onLeave: 0 });
-  const [loading, setLoading] = useState(true);
+  const searchParams = useSearchParams();
+  const query = searchParams.get("search") ?? "";
+  const department = searchParams.get("department") ?? "all";
+  const page = Number(searchParams.get("page") ?? "1");
+  const [result, setResult] = useState<{ key: string; data?: DirectoryResponse; error?: string } | null>(null);
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-  const [department, setDepartment] = useState("all");
+  const [searchDraft, setSearchDraft] = useState({ query, value: query });
+  const [revision, setRevision] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const requestKey = JSON.stringify([query, department, page, revision]);
+  const current = result?.key === requestKey ? result : null;
+  const loading = !current;
+  const employees = current?.data?.employees ?? [];
+  const stats = current?.data?.stats ?? { total: 0, departments: 0, onLeave: 0 };
+  const pagination = current?.data?.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 1, hasPrevious: false, hasNext: false };
+  const departments = current?.data?.departments ?? [];
+  const search = searchDraft.query === query ? searchDraft.value : query;
+  const displayError = error || current?.error;
 
   async function signOut() {
     setSigningOut(true);
@@ -38,34 +51,51 @@ export function EmployeeDirectory({ user }: { user: { name: string; email: strin
     router.refresh();
   }
 
-  async function loadEmployees() {
-    setLoading(true); setError("");
-    try {
-      const response = await fetch("/api/employees", { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      setEmployees(data.employees); setStats(data.stats);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to load employees."); }
-    finally { setLoading(false); }
+  function navigate(changes: { search?: string; department?: string; page?: number }) {
+    setError("");
+    const params = new URLSearchParams(searchParams.toString());
+    if (changes.search !== undefined) {
+      if (changes.search) params.set("search", changes.search); else params.delete("search");
+    }
+    if (changes.department !== undefined) {
+      if (changes.department !== "all") params.set("department", changes.department); else params.delete("department");
+    }
+    if (changes.page !== undefined) {
+      if (changes.page > 1) params.set("page", String(changes.page)); else params.delete("page");
+    }
+    const next = params.toString();
+    router.push(next ? `/?${next}` : "/", { scroll: false });
   }
 
   useEffect(() => {
-    let active = true;
-    fetch("/api/employees", { cache: "no-store" })
+    const controller = new AbortController();
+    const params = new URLSearchParams();
+    if (query) params.set("search", query);
+    if (department !== "all") params.set("department", department);
+    params.set("page", String(page));
+    fetch(`/api/employees?${params}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
-        if (active) { setEmployees(data.employees); setStats(data.stats); }
+        if (controller.signal.aborted) return;
+        if (page > data.pagination.totalPages) {
+          params.set("page", String(data.pagination.totalPages));
+          router.replace(`/?${params}`, { scroll: false });
+          return;
+        }
+        setResult({ key: requestKey, data });
       })
-      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "Unable to load employees."); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, []);
-  const departments = useMemo(() => [...new Set(employees.map((item) => item.department))].sort(), [employees]);
-  const visibleEmployees = useMemo(() => employees.filter((employee) => {
-    const haystack = `${employee.firstName} ${employee.lastName} ${employee.email} ${employee.company} ${employee.jobTitle}`.toLowerCase();
-    return haystack.includes(search.toLowerCase()) && (department === "all" || employee.department === department);
-  }), [employees, search, department]);
+      .catch((cause: unknown) => { if (!controller.signal.aborted) setResult({ key: requestKey, error: cause instanceof Error ? cause.message : "Unable to load employees." }); });
+    return () => controller.abort();
+  }, [query, department, page, requestKey, router]);
+
+  function submitSearch(event: FormEvent) {
+    event.preventDefault();
+    const value = search.trim();
+    if (value.length === 1) { setError("Enter at least two characters to search."); return; }
+    setError("");
+    navigate({ search: value, page: 1 });
+  }
 
   function openCreate() { setEditing(null); setForm(emptyForm); setModalOpen(true); }
   function openEdit(employee: Employee) {
@@ -80,7 +110,7 @@ export function EmployeeDirectory({ user }: { user: { name: string; email: strin
       const response = await fetch(editing ? `/api/employees/${editing.id}` : "/api/employees", { method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
-      setModalOpen(false); await loadEmployees();
+      setModalOpen(false); setRevision((value) => value + 1);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to save employee."); }
     finally { setSaving(false); }
   }
@@ -88,7 +118,10 @@ export function EmployeeDirectory({ user }: { user: { name: string; email: strin
   async function removeEmployee(employee: Employee) {
     if (!window.confirm(`Remove ${employee.firstName} ${employee.lastName} from the directory?`)) return;
     const response = await fetch(`/api/employees/${employee.id}`, { method: "DELETE" });
-    if (response.ok) await loadEmployees(); else setError("Unable to remove employee.");
+    if (response.ok) {
+      if (employees.length === 1 && page > 1) navigate({ page: page - 1 });
+      else setRevision((value) => value + 1);
+    } else setError("Unable to remove employee.");
   }
 
   const setField = (field: keyof FormState, value: string) => setForm((current) => ({ ...current, [field]: value }));
@@ -104,13 +137,14 @@ export function EmployeeDirectory({ user }: { user: { name: string; email: strin
       <main className="min-w-0">
         <header className="border-b border-[#dfe4e1] bg-white px-5 py-4 sm:px-8"><div className="mx-auto flex max-w-7xl items-center justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#568067]">People operations</p><h1 className="mt-1 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">Employee directory</h1></div><div className="flex items-center gap-2 sm:gap-3"><div className="hidden text-right md:block"><p className="text-sm font-semibold">{user.name}</p><p className="text-xs text-[#7a857e]">{user.email}</p></div><button type="button" onClick={() => void signOut()} disabled={signingOut} aria-label="Log out" className="rounded-lg border border-[#d6dcd8] bg-white p-2.5 text-[#536058] transition hover:bg-[#f2f5f3] disabled:opacity-50"><LogOut size={17}/></button><button onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-[#173f2b] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#24583d]"><Plus size={17}/> <span className="hidden sm:inline">Add employee</span></button></div></div></header>
         <div className="mx-auto max-w-7xl p-5 sm:p-8">
-          {error && <div className="mb-5 flex items-center justify-between rounded-xl border border-[#efc9c5] bg-[#fff5f3] px-4 py-3 text-sm text-[#9c3028]"><span className="flex items-center gap-2"><CircleAlert size={17}/>{error}</span><button aria-label="Dismiss error" onClick={() => setError("")}><X size={17}/></button></div>}
+          {displayError && <div className="mb-5 flex items-center justify-between rounded-xl border border-[#efc9c5] bg-[#fff5f3] px-4 py-3 text-sm text-[#9c3028]" role="alert"><span className="flex items-center gap-2"><CircleAlert size={17}/>{displayError}</span>{current?.error ? <button type="button" onClick={() => setRevision((value) => value + 1)} className="font-semibold underline">Try again</button> : <button type="button" aria-label="Dismiss error" onClick={() => setError("")}><X size={17}/></button>}</div>}
           <section className="grid gap-4 sm:grid-cols-3">
             {[{ label: "Total employees", value: stats.total, note: "Across the organization", icon: Users }, { label: "Departments", value: stats.departments, note: "Active teams", icon: Building2 }, { label: "On leave", value: stats.onLeave, note: "Currently away", icon: CalendarDays }].map((item) => <article key={item.label} className="rounded-2xl border border-[#dfe4e1] bg-white p-5 shadow-[0_1px_3px_rgba(16,35,23,.04)]"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#66736b]">{item.label}</p><p className="mt-2 text-3xl font-semibold tracking-[-0.04em]">{item.value}</p><p className="mt-1 text-xs text-[#8a958e]">{item.note}</p></div><div className="rounded-xl bg-[#edf4ef] p-2.5 text-[#356448]"><item.icon size={19}/></div></div></article>)}
           </section>
           <section className="mt-6 overflow-hidden rounded-2xl border border-[#dfe4e1] bg-white shadow-[0_1px_3px_rgba(16,35,23,.04)]">
-            <div className="flex flex-col gap-4 border-b border-[#e6eae7] p-5 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-semibold">Team members</h2><p className="mt-0.5 text-sm text-[#7b867f]">Employee profiles and work information</p></div><div className="flex gap-2"><label className="relative flex-1"><Search className="absolute left-3 top-2.5 text-[#87928b]" size={16}/><input value={search} onChange={(event) => setSearch(event.target.value)} className="w-full rounded-lg border border-[#d6dcd8] py-2 pl-9 pr-3 text-sm outline-none transition focus:border-[#4c7f60] focus:ring-2 focus:ring-[#4c7f60]/15" placeholder="Search people"/></label><label className="relative"><select value={department} onChange={(event) => setDepartment(event.target.value)} aria-label="Filter by department" className="appearance-none rounded-lg border border-[#d6dcd8] bg-white py-2 pl-3 pr-8 text-sm outline-none"><option value="all">All departments</option>{departments.map((name) => <option key={name}>{name}</option>)}</select><ChevronDown className="pointer-events-none absolute right-2.5 top-2.5" size={15}/></label></div></div>
-            {loading ? <div className="grid min-h-64 place-items-center text-[#6c7870]"><LoaderCircle className="animate-spin"/></div> : visibleEmployees.length === 0 ? <div className="grid min-h-64 place-items-center px-6 text-center"><div><Users className="mx-auto text-[#95a099]"/><p className="mt-3 font-medium">No employees found</p><p className="mt-1 text-sm text-[#78847c]">Add a person or adjust your filters.</p></div></div> : <div className="overflow-x-auto"><table className="w-full min-w-[960px] text-left text-sm"><thead className="bg-[#f7f9f8] text-xs uppercase tracking-[0.08em] text-[#758078]"><tr><th className="px-5 py-3 font-semibold">Employee</th><th className="px-5 py-3 font-semibold">Company</th><th className="px-5 py-3 font-semibold">Role</th><th className="px-5 py-3 font-semibold">Department</th><th className="px-5 py-3 font-semibold">Location</th><th className="px-5 py-3 font-semibold">Status</th><th className="px-5 py-3"><span className="sr-only">Actions</span></th></tr></thead><tbody>{visibleEmployees.map((employee) => <tr key={employee.id} className="border-t border-[#edf0ee] transition hover:bg-[#fafcfb]"><td className="px-5 py-4"><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-full bg-[#e4efe7] text-xs font-bold text-[#315f43]">{initials(employee)}</div><div><p className="font-semibold">{employee.firstName} {employee.lastName}</p><p className="mt-0.5 flex items-center gap-1 text-xs text-[#7a857e]"><Mail size={11}/>{employee.email}</p></div></div></td><td className="px-5 py-4 text-[#536058]">{employee.company}</td><td className="px-5 py-4 text-[#536058]">{employee.jobTitle}</td><td className="px-5 py-4"><span className="rounded-md bg-[#f0f3f1] px-2 py-1 text-xs font-medium">{employee.department}</span></td><td className="px-5 py-4 text-[#68746c]"><span className="flex items-center gap-1.5"><MapPin size={14}/>{employee.location}</span></td><td className="px-5 py-4"><span className={`status status-${employee.status}`}><span/>{statusLabels[employee.status]}</span></td><td className="px-5 py-4"><div className="flex justify-end gap-1"><button aria-label={`Edit ${employee.firstName}`} onClick={() => openEdit(employee)} className="rounded-md p-2 text-[#627067] hover:bg-[#edf2ef] hover:text-[#173f2b]"><Edit3 size={16}/></button><button aria-label={`Remove ${employee.firstName}`} onClick={() => void removeEmployee(employee)} className="rounded-md p-2 text-[#87928b] hover:bg-[#fff0ee] hover:text-[#b13c32]"><Trash2 size={16}/></button><MoreHorizontal className="hidden"/></div></td></tr>)}</tbody></table></div>}
+            <div className="flex flex-col gap-4 border-b border-[#e6eae7] p-5 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-semibold">Team members</h2><p className="mt-0.5 text-sm text-[#7b867f]">Employee profiles and work information</p></div><div className="flex flex-col gap-2 sm:flex-row"><form onSubmit={submitSearch} role="search" className="flex gap-2"><label className="relative flex-1"><span className="sr-only">Search people</span><Search className="absolute left-3 top-2.5 text-[#87928b]" size={16}/><input value={search} onChange={(event) => setSearchDraft({ query, value: event.target.value })} maxLength={120} className="w-full rounded-lg border border-[#d6dcd8] py-2 pl-9 pr-3 text-sm outline-none transition focus:border-[#4c7f60] focus:ring-2 focus:ring-[#4c7f60]/15" placeholder="Search people"/></label><button type="submit" className="rounded-lg bg-[#173f2b] px-3 py-2 text-sm font-semibold text-white">Search</button>{query && <button type="button" onClick={() => { setSearchDraft({ query: "", value: "" }); navigate({ search: "", page: 1 }); }} className="rounded-lg border border-[#d6dcd8] px-3 py-2 text-sm">Clear</button>}</form><label className="relative"><select value={department} onChange={(event) => navigate({ department: event.target.value, page: 1 })} aria-label="Filter by department" className="w-full appearance-none rounded-lg border border-[#d6dcd8] bg-white py-2 pl-3 pr-8 text-sm outline-none"><option value="all">All departments</option>{departments.map((name) => <option key={name}>{name}</option>)}</select><ChevronDown className="pointer-events-none absolute right-2.5 top-2.5" size={15}/></label></div></div>
+            {loading ? <div className="grid min-h-64 place-items-center text-[#6c7870]" role="status"><LoaderCircle className="animate-spin"/><span className="sr-only">Loading employees</span></div> : current?.error ? <div className="grid min-h-64 place-items-center px-6 text-center text-sm text-[#78847c]">Employee results could not be loaded.</div> : employees.length === 0 ? <div className="grid min-h-64 place-items-center px-6 text-center"><div><Users className="mx-auto text-[#95a099]"/><p className="mt-3 font-medium">No employees found</p><p className="mt-1 text-sm text-[#78847c]">{query || department !== "all" ? "Try another search or clear your filters." : "Add a person to get started."}</p></div></div> : <div className="overflow-x-auto"><table className="w-full min-w-[960px] text-left text-sm"><thead className="bg-[#f7f9f8] text-xs uppercase tracking-[0.08em] text-[#758078]"><tr><th className="px-5 py-3 font-semibold">Employee</th><th className="px-5 py-3 font-semibold">Company</th><th className="px-5 py-3 font-semibold">Role</th><th className="px-5 py-3 font-semibold">Department</th><th className="px-5 py-3 font-semibold">Location</th><th className="px-5 py-3 font-semibold">Status</th><th className="px-5 py-3"><span className="sr-only">Actions</span></th></tr></thead><tbody>{employees.map((employee) => <tr key={employee.id} className="border-t border-[#edf0ee] transition hover:bg-[#fafcfb]"><td className="px-5 py-4"><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-full bg-[#e4efe7] text-xs font-bold text-[#315f43]">{initials(employee)}</div><div><p className="font-semibold">{employee.firstName} {employee.lastName}</p><p className="mt-0.5 flex items-center gap-1 text-xs text-[#7a857e]"><Mail size={11}/>{employee.email}</p></div></div></td><td className="px-5 py-4 text-[#536058]">{employee.company}</td><td className="px-5 py-4 text-[#536058]">{employee.jobTitle}</td><td className="px-5 py-4"><span className="rounded-md bg-[#f0f3f1] px-2 py-1 text-xs font-medium">{employee.department}</span></td><td className="px-5 py-4 text-[#68746c]"><span className="flex items-center gap-1.5"><MapPin size={14}/>{employee.location}</span></td><td className="px-5 py-4"><span className={`status status-${employee.status}`}><span/>{statusLabels[employee.status]}</span></td><td className="px-5 py-4"><div className="flex justify-end gap-1"><button aria-label={`Edit ${employee.firstName}`} onClick={() => openEdit(employee)} className="rounded-md p-2 text-[#627067] hover:bg-[#edf2ef] hover:text-[#173f2b]"><Edit3 size={16}/></button><button aria-label={`Remove ${employee.firstName}`} onClick={() => void removeEmployee(employee)} className="rounded-md p-2 text-[#87928b] hover:bg-[#fff0ee] hover:text-[#b13c32]"><Trash2 size={16}/></button><MoreHorizontal className="hidden"/></div></td></tr>)}</tbody></table></div>}
+            {!loading && !displayError && <div className="flex flex-col gap-3 border-t border-[#e6eae7] px-5 py-4 text-sm text-[#66736b] sm:flex-row sm:items-center sm:justify-between"><p aria-live="polite">{pagination.total === 0 ? "0 results" : `${(pagination.page - 1) * pagination.pageSize + 1}–${Math.min(pagination.page * pagination.pageSize, pagination.total)} of ${pagination.total} results`}</p><div className="flex items-center gap-2"><button type="button" onClick={() => navigate({ page: page - 1 })} disabled={!pagination.hasPrevious} className="rounded-lg border border-[#d6dcd8] px-3 py-2 disabled:opacity-50">Previous</button><span>Page {pagination.page} of {pagination.totalPages}</span><button type="button" onClick={() => navigate({ page: page + 1 })} disabled={!pagination.hasNext} className="rounded-lg border border-[#d6dcd8] px-3 py-2 disabled:opacity-50">Next</button></div></div>}
           </section>
         </div>
       </main>
