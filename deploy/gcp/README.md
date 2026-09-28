@@ -20,6 +20,8 @@ endpoint group (NEG) that targets the Cloud Run service.
 - Better Auth secret: `employee-app-better-auth-secret`
 - Google OAuth client secret: `employee-app-google-client-secret`
 - Resend API key: `employee-app-resend-api-key`
+- Google Places server key: `employee-app-google-maps-server-key`
+- Google Maps Embed browser key: `employee-app-google-maps-embed-key`
 - Artifact Registry repository: `employee-app`
 - Serverless NEG: `employee-app-cloud-run-neg`
 - Global backend service: `employee-app-cloud-run-backend`
@@ -28,6 +30,15 @@ endpoint group (NEG) that targets the Cloud Run service.
 The runtime service account has Cloud SQL Client and access to only the Cloud
 Run database and authentication secrets. Credentials are never passed as
 command arguments, stored in images, or committed to source control.
+
+The address screen uses Places API (New) for suggestions and Maps Embed API for
+the selected location. Enable both APIs and create separate API keys. Restrict
+the Places key to `places.googleapis.com`; keep it server-side. Restrict the
+Embed key to `maps-embed-backend.googleapis.com` and the production HTTPS
+referrer `https://employees-example.com/*`. Save the keys as the two Secret
+Manager secrets above before running the release script. The Embed key is
+delivered to signed-in browsers for map previews; referrer and API restrictions
+protect its use. Configure API quotas to cap Google Maps costs.
 
 Before the first authenticated deployment, create the Better Auth, Google
 OAuth client, and Resend API key secrets in Secret Manager. Add secret values from temporary files

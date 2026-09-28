@@ -17,14 +17,16 @@ export default function PrivacyPage() {
               Employee App stores the name and email address associated with your account. If you
               sign in with Google, Google provides basic profile information needed to identify your
               account. The app also stores employee directory records that authorized users create
-              or update.
+              or update. If you choose to add a profile photo or home address, the app stores
+              those details too. Time away records include dates, type, and any note entered.
             </p>
           </section>
           <section>
             <h2 className="text-xl font-semibold text-slate-950">How information is used</h2>
             <p className="mt-2">
               Account information is used only to authenticate you, maintain your session, protect
-              employee data, and operate the directory. We do not sell personal information or use
+              employee data, and operate the directory, department, and time away screens. Address
+              suggestions send the text you enter to Google Maps Platform. We do not sell personal information or use
               it for advertising.
             </p>
           </section>
@@ -32,7 +34,8 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-slate-950">Storage and sharing</h2>
             <p className="mt-2">
               Data is stored in Google Cloud infrastructure. Information is shared with service
-              providers only as needed to host, secure, and authenticate the application, or when
+              providers only as needed to host, secure, authenticate, and provide Google Maps
+              address suggestions and map previews, or when
               required by law.
             </p>
           </section>
@@ -40,7 +43,8 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-slate-950">Your choices</h2>
             <p className="mt-2">
               You may stop using the app at any time and revoke Google account access from your
-              Google Account settings. Contact the application owner to request access, correction,
+              Google Account settings. You can remove your profile photo in the app. Contact the
+              application owner to request access, correction,
               or deletion of your account data.
             </p>
           </section>

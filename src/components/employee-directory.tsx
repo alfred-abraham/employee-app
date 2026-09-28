@@ -2,8 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Building2, CalendarDays, ChevronDown, CircleAlert, Edit3, LayoutDashboard, LoaderCircle, LogOut, Mail, MapPin, MoreHorizontal, Plus, Search, Trash2, Users, X } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
+import { Building2, CalendarDays, ChevronDown, CircleAlert, Edit3, LoaderCircle, Mail, MapPin, MoreHorizontal, Plus, Search, Trash2, Users, X } from "lucide-react";
+import { AppShell, type ShellUser } from "./app-shell";
 
 type Employee = {
   id: string; employeeNumber: string; firstName: string; lastName: string; email: string; phone: string | null;
@@ -13,13 +13,13 @@ type Employee = {
 type Stats = { total: number; departments: number; onLeave: number };
 type Pagination = { page: number; pageSize: number; total: number; totalPages: number; hasPrevious: boolean; hasNext: boolean };
 type DirectoryResponse = { employees: Employee[]; stats: Stats; pagination: Pagination; departments: string[] };
-type FormState = Omit<Employee, "id" | "createdAt" | "updatedAt">;
+type FormState = Omit<Employee, "id" | "createdAt" | "updatedAt" | "status"> & { status: "active" | "inactive" };
 
 const emptyForm: FormState = { employeeNumber: "", firstName: "", lastName: "", email: "", phone: "", company: "", jobTitle: "", department: "", location: "", status: "active", startDate: new Date().toISOString().slice(0, 10), manager: "" };
 const statusLabels = { active: "Active", on_leave: "On leave", inactive: "Inactive" };
 const initials = (employee: Employee) => `${employee.firstName[0]}${employee.lastName[0]}`;
 
-export function EmployeeDirectory({ user }: { user: { name: string; email: string } }) {
+export function EmployeeDirectory({ user }: { user: ShellUser }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const query = searchParams.get("search") ?? "";
@@ -33,7 +33,6 @@ export function EmployeeDirectory({ user }: { user: { name: string; email: strin
   const [editing, setEditing] = useState<Employee | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
   const requestKey = JSON.stringify([query, department, page, revision]);
   const current = result?.key === requestKey ? result : null;
   const loading = !current;
@@ -43,13 +42,6 @@ export function EmployeeDirectory({ user }: { user: { name: string; email: strin
   const departments = current?.data?.departments ?? [];
   const search = searchDraft.query === query ? searchDraft.value : query;
   const displayError = error || current?.error;
-
-  async function signOut() {
-    setSigningOut(true);
-    await authClient.signOut();
-    router.replace("/login");
-    router.refresh();
-  }
 
   function navigate(changes: { search?: string; department?: string; page?: number }) {
     setError("");
@@ -100,7 +92,7 @@ export function EmployeeDirectory({ user }: { user: { name: string; email: strin
   function openCreate() { setEditing(null); setForm(emptyForm); setModalOpen(true); }
   function openEdit(employee: Employee) {
     setEditing(employee);
-    setForm({ employeeNumber: employee.employeeNumber, firstName: employee.firstName, lastName: employee.lastName, email: employee.email, phone: employee.phone ?? "", company: employee.company, jobTitle: employee.jobTitle, department: employee.department, location: employee.location, status: employee.status, startDate: employee.startDate, manager: employee.manager ?? "" });
+    setForm({ employeeNumber: employee.employeeNumber, firstName: employee.firstName, lastName: employee.lastName, email: employee.email, phone: employee.phone ?? "", company: employee.company, jobTitle: employee.jobTitle, department: employee.department, location: employee.location, status: employee.status === "inactive" ? "inactive" : "active", startDate: employee.startDate, manager: employee.manager ?? "" });
     setModalOpen(true);
   }
 
@@ -127,15 +119,8 @@ export function EmployeeDirectory({ user }: { user: { name: string; email: strin
   const setField = (field: keyof FormState, value: string) => setForm((current) => ({ ...current, [field]: value }));
 
   return (
-    <div className="min-h-screen bg-[#f3f5f4] text-[#17221c] lg:grid lg:grid-cols-[228px_1fr]">
-      <aside className="hidden border-r border-[#dfe4e1] bg-[#153d2a] p-5 text-white lg:flex lg:flex-col">
-        <div className="flex items-center gap-3 border-b border-white/10 pb-6"><div className="grid size-10 place-items-center rounded-xl bg-[#d7f06b] text-[#153d2a]"><Users size={21} strokeWidth={2.5} /></div><div><p className="font-semibold tracking-tight">PeopleCore</p><p className="text-xs text-white/55">Employee operations</p></div></div>
-        <nav className="mt-6 space-y-1 text-sm"><a className="flex items-center gap-3 rounded-lg bg-white/10 px-3 py-2.5 font-medium" href="#"><LayoutDashboard size={17}/>Directory</a><span className="flex items-center gap-3 px-3 py-2.5 text-white/55"><Building2 size={17}/>Departments</span><span className="flex items-center gap-3 px-3 py-2.5 text-white/55"><CalendarDays size={17}/>Time away</span></nav>
-        <div className="mt-auto rounded-xl border border-white/10 bg-white/5 p-3"><p className="text-xs font-semibold">System status</p><p className="mt-1 flex items-center gap-2 text-xs text-white/55"><span className="size-2 rounded-full bg-[#d7f06b]"/>Connected to PostgreSQL</p></div>
-      </aside>
-
-      <main className="min-w-0">
-        <header className="border-b border-[#dfe4e1] bg-white px-5 py-4 sm:px-8"><div className="mx-auto flex max-w-7xl items-center justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#568067]">People operations</p><h1 className="mt-1 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">Employee directory</h1></div><div className="flex items-center gap-2 sm:gap-3"><div className="hidden text-right md:block"><p className="text-sm font-semibold">{user.name}</p><p className="text-xs text-[#7a857e]">{user.email}</p></div><button type="button" onClick={() => void signOut()} disabled={signingOut} aria-label="Log out" className="rounded-lg border border-[#d6dcd8] bg-white p-2.5 text-[#536058] transition hover:bg-[#f2f5f3] disabled:opacity-50"><LogOut size={17}/></button><button onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-[#173f2b] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#24583d]"><Plus size={17}/> <span className="hidden sm:inline">Add employee</span></button></div></div></header>
+    <>
+      <AppShell user={user} section="directory" title="Employee directory" action={<button onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-[#173f2b] px-4 py-2.5 text-sm font-semibold text-white shadow-sm"><Plus size={17}/> <span className="hidden sm:inline">Add employee</span></button>}>
         <div className="mx-auto max-w-7xl p-5 sm:p-8">
           {displayError && <div className="mb-5 flex items-center justify-between rounded-xl border border-[#efc9c5] bg-[#fff5f3] px-4 py-3 text-sm text-[#9c3028]" role="alert"><span className="flex items-center gap-2"><CircleAlert size={17}/>{displayError}</span>{current?.error ? <button type="button" onClick={() => setRevision((value) => value + 1)} className="font-semibold underline">Try again</button> : <button type="button" aria-label="Dismiss error" onClick={() => setError("")}><X size={17}/></button>}</div>}
           <section className="grid gap-4 sm:grid-cols-3">
@@ -147,12 +132,12 @@ export function EmployeeDirectory({ user }: { user: { name: string; email: strin
             {!loading && !displayError && <div className="flex flex-col gap-3 border-t border-[#e6eae7] px-5 py-4 text-sm text-[#66736b] sm:flex-row sm:items-center sm:justify-between"><p aria-live="polite">{pagination.total === 0 ? "0 results" : `${(pagination.page - 1) * pagination.pageSize + 1}–${Math.min(pagination.page * pagination.pageSize, pagination.total)} of ${pagination.total} results`}</p><div className="flex items-center gap-2"><button type="button" onClick={() => navigate({ page: page - 1 })} disabled={!pagination.hasPrevious} className="rounded-lg border border-[#d6dcd8] px-3 py-2 disabled:opacity-50">Previous</button><span>Page {pagination.page} of {pagination.totalPages}</span><button type="button" onClick={() => navigate({ page: page + 1 })} disabled={!pagination.hasNext} className="rounded-lg border border-[#d6dcd8] px-3 py-2 disabled:opacity-50">Next</button></div></div>}
           </section>
         </div>
-      </main>
+      </AppShell>
 
       {modalOpen && <div className="fixed inset-0 z-50 grid place-items-center bg-[#0b1e14]/50 p-4 backdrop-blur-[2px]" onMouseDown={(event) => { if (event.target === event.currentTarget) setModalOpen(false); }}><form onSubmit={saveEmployee} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"><div className="sticky top-0 z-10 flex items-start justify-between border-b border-[#e2e7e3] bg-white px-6 py-5"><div><h2 className="text-xl font-semibold tracking-tight">{editing ? "Edit employee" : "Add employee"}</h2><p className="mt-1 text-sm text-[#748078]">Keep the organization directory up to date.</p></div><button type="button" aria-label="Close" onClick={() => setModalOpen(false)} className="rounded-lg p-2 hover:bg-[#f0f3f1]"><X size={18}/></button></div><div className="grid gap-4 p-6 sm:grid-cols-2">
-        <Field label="First name" value={form.firstName} onChange={(v) => setField("firstName", v)} required/><Field label="Last name" value={form.lastName} onChange={(v) => setField("lastName", v)} required/><Field label="Employee number" value={form.employeeNumber} onChange={(v) => setField("employeeNumber", v)} required/><Field label="Work email" type="email" value={form.email} onChange={(v) => setField("email", v)} required/><Field label="Company" value={form.company} onChange={(v) => setField("company", v)} required/><Field label="Job title" value={form.jobTitle} onChange={(v) => setField("jobTitle", v)} required/><Field label="Department" value={form.department} onChange={(v) => setField("department", v)} required/><Field label="Location" value={form.location} onChange={(v) => setField("location", v)} required/><Field label="Start date" type="date" value={form.startDate} onChange={(v) => setField("startDate", v)} required/><Field label="Phone" value={form.phone ?? ""} onChange={(v) => setField("phone", v)}/><Field label="Manager" value={form.manager ?? ""} onChange={(v) => setField("manager", v)}/><label className="text-sm font-medium text-[#435047]">Status<select value={form.status} onChange={(e) => setField("status", e.target.value)} className="mt-1.5 w-full rounded-lg border border-[#d5dcd7] bg-white px-3 py-2.5 font-normal outline-none focus:border-[#4c7f60] focus:ring-2 focus:ring-[#4c7f60]/15"><option value="active">Active</option><option value="on_leave">On leave</option><option value="inactive">Inactive</option></select></label>
+        <Field label="First name" value={form.firstName} onChange={(v) => setField("firstName", v)} required/><Field label="Last name" value={form.lastName} onChange={(v) => setField("lastName", v)} required/><Field label="Employee number" value={form.employeeNumber} onChange={(v) => setField("employeeNumber", v)} required/><Field label="Work email" type="email" value={form.email} onChange={(v) => setField("email", v)} required/><Field label="Company" value={form.company} onChange={(v) => setField("company", v)} required/><Field label="Job title" value={form.jobTitle} onChange={(v) => setField("jobTitle", v)} required/><label className="text-sm font-medium text-[#435047]">Department<select value={form.department} onChange={(event) => setField("department", event.target.value)} required className="mt-1.5 w-full rounded-lg border border-[#d5dcd7] bg-white px-3 py-2.5 font-normal"><option value="">Select department</option>{departments.map((name) => <option key={name} value={name}>{name}</option>)}</select></label><Field label="Location" value={form.location} onChange={(v) => setField("location", v)} required/><Field label="Start date" type="date" value={form.startDate} onChange={(v) => setField("startDate", v)} required/><Field label="Phone" value={form.phone ?? ""} onChange={(v) => setField("phone", v)}/><Field label="Manager" value={form.manager ?? ""} onChange={(v) => setField("manager", v)}/><label className="text-sm font-medium text-[#435047]">Employment status<select value={form.status} onChange={(e) => setField("status", e.target.value)} className="mt-1.5 w-full rounded-lg border border-[#d5dcd7] bg-white px-3 py-2.5 font-normal outline-none focus:border-[#4c7f60] focus:ring-2 focus:ring-[#4c7f60]/15"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
         </div><div className="flex justify-end gap-3 border-t border-[#e2e7e3] bg-[#fafbfa] px-6 py-4"><button type="button" onClick={() => setModalOpen(false)} className="rounded-lg border border-[#d5dcd7] bg-white px-4 py-2.5 text-sm font-semibold">Cancel</button><button disabled={saving} className="inline-flex min-w-32 items-center justify-center gap-2 rounded-lg bg-[#173f2b] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{saving && <LoaderCircle className="animate-spin" size={16}/>} {editing ? "Save changes" : "Add employee"}</button></div></form></div>}
-    </div>
+    </>
   );
 }
 
