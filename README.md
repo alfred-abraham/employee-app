@@ -56,6 +56,8 @@ Production deployments must provide all authentication secrets at runtime and us
 - `npm run build`
 - `GET /api/health`
 
+The directory API accepts `GET /api/employees?page=1&pageSize=25&search=...&department=...&status=...`. Page size defaults to 25 and is capped at 100. Search is case-insensitive across employee names (including full name), email, company, and job title. Search and department filters run in PostgreSQL before paging. The response includes the current `employees` page, `pagination` (`page`, `pageSize`, `total`, `totalPages`, `hasPrevious`, `hasNext`), organization-wide `stats`, and the complete department option list. Invalid paging or filter values return HTTP 400. The directory uses a stable last-name, first-name, ID order; page-number navigation uses offset pagination, so very deep pages may require a cursor-based follow-up if the database grows into millions of rows. Apply migration `0003_employee_directory_paging_search.sql` before deploying this change; it adds name-order and trigram search indexes.
+
 ## Google Compute Engine deployment
 
 The repository includes an idempotent Google Cloud bootstrap and release flow

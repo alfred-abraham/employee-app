@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { EmployeeDirectory } from "@/components/employee-directory";
 import { getCurrentSession } from "@/lib/auth-session";
 
@@ -25,5 +26,5 @@ export default async function Home() {
   const session = await getCurrentSession();
   if (!session) redirect("/login?callbackURL=%2F");
 
-  return <EmployeeDirectory user={{ name: session.user.name, email: session.user.email }} />;
+  return <Suspense fallback={<div className="p-8 text-sm text-[#66736b]">Loading directory…</div>}><EmployeeDirectory user={{ name: session.user.name, email: session.user.email }} /></Suspense>;
 }

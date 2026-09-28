@@ -21,6 +21,7 @@ export const employees = pgTable("employees", {
   uniqueIndex("employees_email_uq").on(table.email),
   index("employees_department_idx").on(table.department),
   index("employees_status_idx").on(table.status),
+  index("employees_name_id_idx").on(table.lastName, table.firstName, table.id),
 ]);
 
 export type Employee = typeof employees.$inferSelect;
