@@ -144,6 +144,12 @@ Database migrations must remain backward-compatible with the previous revision.
 
 ## Operations
 
+To populate a paging demo, run `npm run db:seed-demo` with
+`SEED_DEMO_EMPLOYEES=yes` and the same database connection settings used by the
+migration job. This adds up to 225 synthetic employees with `DEMO-` employee
+numbers and `example.invalid` addresses. Repeating the command does not add
+duplicates. The original directory data is preserved.
+
 Verify the public application:
 
 ```powershell
