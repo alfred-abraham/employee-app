@@ -3,12 +3,13 @@ import { createEmployee, employeeStats, listDepartments, listEmployees } from "@
 import { parseEmployeeQuery } from "@/lib/employee-query";
 import { employeeInputSchema } from "@/lib/employee-validation";
 import { apiError } from "@/lib/http";
-import { authenticationRequired, getRequestSession } from "@/lib/auth-session";
+import { requirePermission } from "@/lib/auth-session";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  if (!await getRequestSession(request)) return authenticationRequired();
+  const denied = await requirePermission(request, "read");
+  if (denied) return denied;
   try {
     const query = parseEmployeeQuery(request.nextUrl.searchParams);
     if (!query) return NextResponse.json({ error: "Invalid employee search or paging parameters." }, { status: 400 });
@@ -18,7 +19,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!await getRequestSession(request)) return authenticationRequired();
+  const denied = await requirePermission(request, "write");
+  if (denied) return denied;
   try {
     const parsed = employeeInputSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: "Please correct the highlighted employee details.", issues: parsed.error.flatten().fieldErrors }, { status: 400 });

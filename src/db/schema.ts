@@ -1,4 +1,4 @@
-import { bigint, boolean, date, index, integer, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
+import { bigint, boolean, date, index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 
 export const departments = pgTable("departments", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -75,6 +75,30 @@ export const profilePhotos = pgTable("profile_photos", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const userSignIns = pgTable("user_sign_ins", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  firstSignInAt: timestamp("first_sign_in_at", { withTimezone: true }).notNull(),
+  lastSignInAt: timestamp("last_sign_in_at", { withTimezone: true }).notNull(),
+});
+
+export const userRoles = pgTable("user_roles", {
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  role: varchar("role", { length: 16 }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ columns: [table.userId, table.role] }), index("user_roles_admin_idx").on(table.role, table.expiresAt)]);
+
+export const roleAudit = pgTable("role_audit", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  actorId: text("actor_id").notNull(),
+  targetUserId: text("target_user_id").notNull(),
+  role: varchar("role", { length: 16 }).notNull(),
+  action: varchar("action", { length: 16 }).notNull(),
+  previousExpiresAt: timestamp("previous_expires_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("role_audit_target_idx").on(table.targetUserId, table.createdAt)]);
+
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -120,3 +144,26 @@ export const rateLimit = pgTable("rateLimit", {
   count: integer("count").notNull(),
   lastRequest: bigint("last_request", { mode: "number" }).notNull(),
 });
+
+export const profileDocuments = pgTable("profile_documents", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  // Keep the object reference after account deletion so cleanup can remove its bytes.
+  userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+  uploadKey: uuid("upload_key").notNull(),
+  originalName: varchar("original_name", { length: 200 }).notNull(),
+  category: varchar("category", { length: 16 }).$type<"resume" | "other">().notNull(),
+  contentType: varchar("content_type", { length: 100 }).notNull(),
+  byteSize: integer("byte_size").notNull(),
+  sha256: varchar("sha256", { length: 64 }).notNull(),
+  bucket: text("bucket").notNull(),
+  objectKey: text("object_key").notNull(),
+  generation: text("generation"),
+  status: varchar("status", { length: 16 }).$type<"pending" | "ready" | "deleting">().notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("profile_documents_upload_uq").on(table.userId, table.uploadKey),
+  uniqueIndex("profile_documents_object_uq").on(table.bucket, table.objectKey),
+  index("profile_documents_owner_created_idx").on(table.userId, table.createdAt),
+  index("profile_documents_cleanup_idx").on(table.status, table.updatedAt),
+]);

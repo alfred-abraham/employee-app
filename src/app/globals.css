@@ -19,6 +19,8 @@ button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
 
+body:has(dialog[open]) { overflow: hidden; }
+
 .status { display: inline-flex; align-items: center; gap: .4rem; border-radius: 999px; padding: .28rem .55rem; font-size: .75rem; font-weight: 600; }
 .status span { width: .4rem; height: .4rem; border-radius: 999px; background: currentColor; }
 .status-active { background: #e9f6ed; color: #287344; }
