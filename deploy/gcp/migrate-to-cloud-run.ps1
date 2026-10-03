@@ -91,6 +91,7 @@ try {
 }
 
 $DeployParameters = @{
+  Ingress = "internal-and-cloud-load-balancing"
   ProjectId = $ProjectId
   Region = $Region
   ServiceName = $ServiceName

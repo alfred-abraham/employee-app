@@ -6,6 +6,7 @@ import { betterAuth } from "better-auth/minimal";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { isPasswordAllowed, passwordPolicy } from "@/lib/auth-validation";
+import { recordSignIn } from "@/lib/role-repository";
 import { consumeVerificationToken, hasPendingVerificationToken, sendAccountVerificationEmail, verificationLifetimeSeconds } from "@/lib/verification-email";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
@@ -15,6 +16,9 @@ export const isGoogleAuthConfigured = Boolean(googleClientId && googleClientSecr
 
 export const auth = betterAuth({
   appName: "PeopleCore",
+  databaseHooks: {
+    session: { create: { after: async (session) => { await recordSignIn(session.userId, session.createdAt); } } },
+  },
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, {

@@ -8,7 +8,7 @@ export default function PrivacyPage() {
       </Link>
       <article className="mt-8 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
         <h1 className="text-3xl font-bold tracking-tight text-slate-950">Privacy Policy</h1>
-        <p className="mt-2 text-sm text-slate-500">Effective September 21, 2026</p>
+        <p className="mt-2 text-sm text-slate-500">Effective October 3, 2026</p>
 
         <div className="mt-8 space-y-7 leading-7">
           <section>
@@ -18,7 +18,8 @@ export default function PrivacyPage() {
               sign in with Google, Google provides basic profile information needed to identify your
               account. The app also stores employee directory records that authorized users create
               or update. If you choose to add a profile photo or home address, the app stores
-              those details too. Time away records include dates, type, and any note entered.
+              those details too. If you upload a resume or another profile document, we store its
+              contents, filename, category, file type, size, and upload date. Time away records include dates, type, and any note entered.
             </p>
           </section>
           <section>
@@ -40,10 +41,23 @@ export default function PrivacyPage() {
             </p>
           </section>
           <section>
+            <h2 className="text-xl font-semibold text-slate-950">Profile documents</h2>
+            <p className="mt-2">
+              Uploading documents is optional. Document contents are stored in a private Google Cloud Storage
+              bucket, with metadata in our SQL database. In-app access is limited to the account that
+              uploaded them; directory roles do not give other users access. Infrastructure operators
+              may access stored data only as needed to operate the service. Documents are retained until
+              you remove them or your account is deleted. Failed uploads, pending removals, and documents
+              belonging to deleted accounts are retried by cleanup after a one-hour grace period.
+              The configured document bucket disables object versioning and soft delete so removed
+              objects are not retained there; SQL backups may retain metadata under the deployment&apos;s backup policy.
+            </p>
+          </section>
+          <section>
             <h2 className="text-xl font-semibold text-slate-950">Your choices</h2>
             <p className="mt-2">
               You may stop using the app at any time and revoke Google account access from your
-              Google Account settings. You can remove your profile photo in the app. Contact the
+              Google Account settings. You can remove your profile photo and profile documents in the app. Contact the
               application owner to request access, correction,
               or deletion of your account data.
             </p>

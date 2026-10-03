@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { authenticationRequired, getRequestSession } from "@/lib/auth-session";
+import { requirePermission } from "@/lib/auth-session";
 import { reactivateDepartment, renameDepartment, retireDepartment } from "@/lib/department-repository";
 import { apiError } from "@/lib/http";
 
@@ -9,7 +9,8 @@ type Context = { params: Promise<{ id: string }> };
 const input = z.object({ name: z.string().trim().min(2).max(100).optional(), active: z.boolean().optional() }).refine((value) => value.name !== undefined || value.active !== undefined);
 
 export async function PATCH(request: NextRequest, context: Context) {
-  if (!await getRequestSession(request)) return authenticationRequired();
+  const denied = await requirePermission(request, "write");
+  if (denied) return denied;
   try {
     const parsed = input.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: "Enter a valid department name or state." }, { status: 400 });

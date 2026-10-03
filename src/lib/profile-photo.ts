@@ -14,7 +14,7 @@ export async function preparePhoto(input: Buffer, mimeType: string) {
     const decoder = sharp(input, { limitInputPixels: 40_000_000, failOn: "error" });
     const metadata = await decoder.metadata();
     if (!metadata.format || !["jpeg", "png", "webp"].includes(metadata.format)) throw new Error("Unsupported image");
-    const output = await decoder.rotate().resize(512, 512, { fit: "cover", position: "attention" }).webp({ quality: 78 }).toBuffer();
+    const output = await decoder.rotate().resize(512, 512, { fit: "cover", position: "centre" }).webp({ quality: 78 }).toBuffer();
     if (output.length > 500_000) throw new Error("Processed image is too large");
     return output.toString("base64");
   } catch {
