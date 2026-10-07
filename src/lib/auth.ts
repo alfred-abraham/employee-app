@@ -7,17 +7,24 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { isPasswordAllowed, passwordPolicy } from "@/lib/auth-validation";
 import { recordSignIn } from "@/lib/role-repository";
+import { accountBlockHooks } from "@/lib/account-block-auth";
+import { isAccountBlocked, isEmailBlocked, acceptCreatedSession } from "@/lib/account-block-repository";
 import { consumeVerificationToken, hasPendingVerificationToken, sendAccountVerificationEmail, verificationLifetimeSeconds } from "@/lib/verification-email";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
 export const isGoogleAuthConfigured = Boolean(googleClientId && googleClientSecret);
+const blockingHooks = accountBlockHooks(isAccountBlocked, isEmailBlocked, acceptCreatedSession);
 
 export const auth = betterAuth({
   appName: "PeopleCore",
   databaseHooks: {
-    session: { create: { after: async (session) => { await recordSignIn(session.userId, session.createdAt); } } },
+    user: blockingHooks.user,
+    session: { create: { before: blockingHooks.session.create.before, after: async (session) => {
+      await blockingHooks.session.create.after(session);
+      await recordSignIn(session.userId, session.createdAt);
+    } } },
   },
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,

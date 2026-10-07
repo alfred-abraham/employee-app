@@ -2,11 +2,14 @@ import "server-only";
 
 import { and, asc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { roleAudit, user, userRoles, userSignIns } from "@/db/schema";
+import { accountBlocks, accountBlockAudit, roleAudit, user, userRoles, userSignIns } from "@/db/schema";
 import { ServiceError } from "@/lib/http";
-import { accessStatus, activeRoles, hasPermanentAdmin, permits, roleInput, type Role } from "@/lib/role-policy";
+import { accessStatus, activeRoles, roleInput, type Role } from "@/lib/role-policy";
+import { ensurePermanentAdmin, isAccountBlocked, requireUnblockedAdmin } from "./account-block-repository";
+import { isBlockActive } from "./account-block-policy";
 
 export async function getActiveRoles(userId: string) {
+  if (await isAccountBlocked(userId)) return [];
   return activeRoles(await db.select().from(userRoles).where(eq(userRoles.userId, userId)));
 }
 
@@ -25,10 +28,13 @@ export async function listUsers(search: string, page: number) {
     .leftJoin(userSignIns, eq(user.id, userSignIns.userId)).where(filter).orderBy(asc(user.name), asc(user.id)).limit(25).offset((page - 1) * 25);
   const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(user).where(filter);
   const grants = accounts.length ? await db.select().from(userRoles).where(inArray(userRoles.userId, accounts.map((account) => account.id))) : [];
+  const blocks = accounts.length ? await db.select({ userId: accountBlocks.userId, actorId: accountBlocks.actorId, reason: accountBlocks.reason, expiresAt: accountBlocks.expiresAt, createdAt: accountBlocks.createdAt }).from(accountBlocks).where(inArray(accountBlocks.userId, accounts.map(account => account.id))) : [];
+  const audit = accounts.length ? await db.select().from(accountBlockAudit).where(inArray(accountBlockAudit.targetUserId, accounts.map(account => account.id))).orderBy(asc(accountBlockAudit.createdAt)) : [];
   const now = new Date();
   return { users: accounts.map((account) => {
     const assignments = grants.filter((grant) => grant.userId === account.id);
-    return { ...account, assignments, status: accessStatus(assignments, now) };
+    const block = blocks.find(block => block.userId === account.id) ?? null;
+    return { ...account, assignments, block, blockAudit: audit.filter(entry => entry.targetUserId === account.id), status: isBlockActive(block, now) ? "blocked" : accessStatus(assignments, now) };
   }), pagination: { page, total, totalPages: Math.max(1, Math.ceil(total / 25)) } };
 }
 
@@ -36,8 +42,7 @@ export async function changeRole(actorId: string, targetUserId: string, role: Ro
   return db.transaction(async (tx) => {
     // Serialize administration and bootstrap operations, then recheck the actor under the lock.
     await tx.execute(sql`select pg_advisory_xact_lock(741027)`);
-    const actorGrants = await tx.select().from(userRoles).where(eq(userRoles.userId, actorId));
-    if (!permits(activeRoles(actorGrants), "admin")) throw new ServiceError("Administrator access required.", 403);
+    await requireUnblockedAdmin(tx, actorId);
     if (!revoke && !roleInput().safeParse({ role, expiresAt }).success) throw new ServiceError("Expiry must be in the future or empty for no expiry.", 400);
     const [target] = await tx.select({ id: user.id }).from(user).where(eq(user.id, targetUserId));
     if (!target) throw new ServiceError("User not found.", 404);
@@ -47,9 +52,7 @@ export async function changeRole(actorId: string, targetUserId: string, role: Ro
     if (revoke) await tx.delete(userRoles).where(predicate);
     else await tx.insert(userRoles).values({ userId: targetUserId, role, expiresAt: expiresAt ? new Date(expiresAt) : null })
       .onConflictDoUpdate({ target: [userRoles.userId, userRoles.role], set: { expiresAt: expiresAt ? new Date(expiresAt) : null, updatedAt: new Date() } });
-    if (!hasPermanentAdmin(await tx.select().from(userRoles).where(eq(userRoles.role, "admin")))) {
-      throw new ServiceError("Keep at least one administrator with no expiry. Grant another permanent admin before changing this assignment.", 409);
-    }
+    await ensurePermanentAdmin(tx);
     await tx.insert(roleAudit).values({ actorId, targetUserId, role, action: revoke ? "revoke" : previous ? "change" : "grant",
       previousExpiresAt: previous?.expiresAt ?? null, expiresAt: revoke || !expiresAt ? null : new Date(expiresAt) });
   });

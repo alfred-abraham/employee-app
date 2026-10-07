@@ -6,13 +6,16 @@ import { auth } from "@/lib/auth";
 import { getActiveRoles } from "@/lib/role-repository";
 import { permits, type Permission } from "@/lib/role-policy";
 import { redirect } from "next/navigation";
+import { isAccountBlocked } from "@/lib/account-block-repository";
 
 export async function getCurrentSession() {
-  return auth.api.getSession({ headers: await headers() });
+  const session = await auth.api.getSession({ headers: await headers() });
+  return session && !await isAccountBlocked(session.user.id) ? session : null;
 }
 
 export async function getRequestSession(request: Request) {
-  return auth.api.getSession({ headers: request.headers });
+  const session = await auth.api.getSession({ headers: request.headers });
+  return session && !await isAccountBlocked(session.user.id) ? session : null;
 }
 
 export function authenticationRequired() {
