@@ -99,6 +99,26 @@ export const roleAudit = pgTable("role_audit", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [index("role_audit_target_idx").on(table.targetUserId, table.createdAt)]);
 
+export const accountBlocks = pgTable("account_blocks", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  actorId: text("actor_id").notNull(),
+  reason: varchar("reason", { length: 1000 }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const accountBlockAudit = pgTable("account_block_audit", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  actorId: text("actor_id").notNull(),
+  targetUserId: text("target_user_id").notNull(),
+  action: varchar("action", { length: 16 }).notNull(),
+  reason: varchar("reason", { length: 1000 }).notNull(),
+  previousExpiresAt: timestamp("previous_expires_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  previouslyBlocked: boolean("previously_blocked").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [index("account_block_audit_target_idx").on(table.targetUserId, table.createdAt)]);
+
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
