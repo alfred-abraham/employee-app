@@ -9,7 +9,7 @@ type Context = { params: Promise<{ id: string }> };
 const input = z.object({ name: z.string().trim().min(2).max(100).optional(), active: z.boolean().optional() }).refine((value) => value.name !== undefined || value.active !== undefined);
 
 export async function PATCH(request: NextRequest, context: Context) {
-  const denied = await requirePermission(request, "write");
+  const denied = await requirePermission(request, "admin");
   if (denied) return denied;
   try {
     const parsed = input.safeParse(await request.json());

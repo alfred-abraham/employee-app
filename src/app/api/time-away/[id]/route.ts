@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 type Context = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: NextRequest, context: Context) {
-  const denied = await requirePermission(request, "write");
+  const denied = await requirePermission(request, "admin");
   if (denied) return denied;
   try {
     const parsed = timeAwayInputSchema.safeParse(await request.json());
@@ -18,7 +18,7 @@ export async function PATCH(request: NextRequest, context: Context) {
 }
 
 export async function DELETE(request: NextRequest, context: Context) {
-  const denied = await requirePermission(request, "write");
+  const denied = await requirePermission(request, "admin");
   if (denied) return denied;
   try { return NextResponse.json({ entry: await cancelTimeAway((await context.params).id) }); }
   catch (error) { return apiError(error); }

@@ -12,7 +12,7 @@ const blank = (): Form => ({ employeeId: "", type: "vacation", startDate: new Da
 const labels: Record<string, string> = { vacation: "Vacation", sick: "Sick leave", personal: "Personal", other: "Other" };
 
 export function TimeAwayScreen({ user }: { user: ShellUser }) {
-  const canEdit = permits(user.roles, "write");
+  const canEdit = permits(user.roles, "admin");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [scope, setScope] = useState("current");

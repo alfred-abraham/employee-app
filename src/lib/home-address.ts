@@ -1,8 +1,9 @@
-import { and, eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { employeeHomeAddress, employees } from "@/db/schema";
+import { employeeHomeAddress } from "@/db/schema";
 import { ServiceError } from "./http";
+import { lockEmployeeOwnership, resolveMyEmployee } from "./employee-ownership";
 
 export const homeAddressSchema = z.object({
   line1: z.string().trim().min(3).max(160),
@@ -16,12 +17,10 @@ export const homeAddressSchema = z.object({
 export type HomeAddressInput = z.infer<typeof homeAddressSchema>;
 
 export async function findMyEmployee(userId: string, email: string, emailVerified: boolean) {
-  const linked = (await db.select({ id: employees.id, firstName: employees.firstName, lastName: employees.lastName }).from(employees).where(eq(employees.userId, userId)).limit(1))[0];
-  if (linked || !emailVerified) return linked ?? null;
-  const matches = await db.select({ id: employees.id }).from(employees).where(sql`lower(${employees.email}) = lower(${email})`).limit(2);
-  if (matches.length !== 1) return null;
-  const [claimed] = await db.update(employees).set({ userId }).where(and(eq(employees.id, matches[0].id), sql`${employees.userId} is null`)).returning({ id: employees.id, firstName: employees.firstName, lastName: employees.lastName });
-  return claimed ?? null;
+  return db.transaction(async (tx) => {
+    await lockEmployeeOwnership(tx);
+    return resolveMyEmployee(tx, userId, email, emailVerified);
+  });
 }
 
 export async function readMyAddress(employeeId: string) {

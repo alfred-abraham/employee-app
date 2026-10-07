@@ -3,6 +3,9 @@ import { db } from "@/db";
 import { departments, employees, timeAway } from "@/db/schema";
 import type { EmployeeInput } from "./employee-validation";
 import { escapeLike, type EmployeeQuery } from "./employee-query";
+import { lockEmployeeOwnership, resolveMyEmployee } from "./employee-ownership";
+import type { EmployeeActor } from "./employee-access";
+import { ServiceError } from "./http";
 
 const directoryColumns = Object.fromEntries(Object.entries(getTableColumns(employees)).filter(([name]) => name !== "userId")) as Omit<ReturnType<typeof getTableColumns<typeof employees>>, "userId">;
 const utcToday = sql`(now() at time zone 'UTC')::date`;
@@ -46,18 +49,53 @@ export async function getEmployee(id: string) {
   return (await db.select({ ...directoryColumns, status: effectiveStatus }).from(employees).where(eq(employees.id, id)).limit(1))[0] ?? null;
 }
 
-export async function createEmployee(input: EmployeeInput) {
-  await requireActiveDepartment(input.department);
-  return (await db.insert(employees).values(input).returning({ id: employees.id }))[0];
+export async function employeeOwnership(actor: EmployeeActor) {
+  return db.transaction(async (tx) => {
+    await lockEmployeeOwnership(tx);
+    const employee = await resolveMyEmployee(tx, actor.id, actor.email, actor.emailVerified);
+    if (!employee) return null;
+    const { userId: _owner, ...record } = employee;
+    void _owner;
+    return record;
+  });
 }
 
-export async function updateEmployee(id: string, input: Partial<EmployeeInput>) {
+function requireOwnIdentity(actor: EmployeeActor, email?: string) {
+  if (!actor.emailVerified || (email !== undefined && email.trim().toLowerCase() !== actor.email.trim().toLowerCase())) {
+    throw new ServiceError("Use your verified account email for your employee record.", 403);
+  }
+}
+
+export async function createEmployee(input: EmployeeInput, actor: EmployeeActor) {
+  await requireActiveDepartment(input.department);
+  return db.transaction(async (tx) => {
+    await lockEmployeeOwnership(tx);
+    if (actor.isAdmin) return (await tx.insert(employees).values(input).returning({ id: employees.id }))[0];
+    requireOwnIdentity(actor, input.email);
+    if (await resolveMyEmployee(tx, actor.id, actor.email, true)) throw new ServiceError("Your employee record already exists. Edit it instead.", 409);
+    return (await tx.insert(employees).values({ ...input, email: actor.email.trim().toLowerCase(), userId: actor.id }).returning({ id: employees.id }))[0];
+  });
+}
+
+export async function updateEmployee(id: string, input: Partial<EmployeeInput>, actor: EmployeeActor) {
   if (input.department) await requireActiveDepartment(input.department);
-  return (await db.update(employees).set({ ...input, updatedAt: new Date() }).where(eq(employees.id, id)).returning({ id: employees.id }))[0] ?? null;
+  return db.transaction(async (tx) => {
+    await lockEmployeeOwnership(tx);
+    if (!actor.isAdmin) {
+      requireOwnIdentity(actor, input.email);
+      const owned = await resolveMyEmployee(tx, actor.id, actor.email, true);
+      if (!owned || owned.id !== id) throw new ServiceError("You can only edit your own employee record.", 403);
+    }
+    const predicate = actor.isAdmin ? eq(employees.id, id) : and(eq(employees.id, id), eq(employees.userId, actor.id));
+    return (await tx.update(employees).set({ ...input, updatedAt: new Date() }).where(predicate).returning({ id: employees.id }))[0] ?? null;
+  });
 }
 
 export async function deleteEmployee(id: string) {
-  return (await db.delete(employees).where(eq(employees.id, id)).returning({ id: employees.id }))[0] ?? null;
+  return db.transaction(async (tx) => {
+    await lockEmployeeOwnership(tx);
+    return (await tx.delete(employees).where(eq(employees.id, id)).returning({ id: employees.id }))[0] ?? null;
+  });
 }
 
 export async function employeeStats() {

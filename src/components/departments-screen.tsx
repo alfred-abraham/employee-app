@@ -9,7 +9,7 @@ import { AppShell, type ShellUser } from "./app-shell";
 type Department = { id: string; name: string; active: boolean; employeeCount: number };
 
 export function DepartmentsScreen({ user }: { user: ShellUser }) {
-  const canEdit = permits(user.roles, "write");
+  const canEdit = permits(user.roles, "admin");
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
