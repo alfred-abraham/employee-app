@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const denied = await requirePermission(request, "write");
+  const denied = await requirePermission(request, "admin");
   if (denied) return denied;
   try {
     const parsed = input.safeParse(await request.json());

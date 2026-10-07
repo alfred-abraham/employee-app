@@ -80,17 +80,18 @@ test("roles: database migrations, admin bootstrap, API authorization, expiry, re
     assert.equal((await role(admin, ids.editor, "editor")).status, 200);
     assert.equal((await request("/api/admin/users", editor)).status, 403);
     assert.equal((await role(editor, ids.editor, "admin")).status, 403);
-    const deptResponse = await request("/api/departments", editor, "POST", { name: `${prefix} department` });
+    const deptResponse = await request("/api/departments", admin, "POST", { name: `${prefix} department` });
     assert.equal(deptResponse.status, 201);
     const department = (await deptResponse.json()).department;
     const employeeResponse = await request("/api/employees", editor, "POST", {
-      employeeNumber: prefix.slice(-20), firstName: "Role", lastName: "Test", email: `${prefix}-employee@example.com`, company: "Testing",
+      employeeNumber: prefix.slice(-20), firstName: "Role", lastName: "Test", email: email("editor"), company: "Testing",
       jobTitle: "Tester", department: department.name, location: "Remote", status: "active", startDate: "2026-10-03", phone: "", manager: "",
     });
     assert.equal(employeeResponse.status, 201, await employeeResponse.clone().text());
     const employee = (await employeeResponse.json()).employee;
     assert.equal((await request(`/api/employees/${employee.id}`, editor, "PATCH", { jobTitle: "Updated Tester" })).status, 200);
-    assert.equal((await request(`/api/employees/${employee.id}`, editor, "DELETE")).status, 204);
+    assert.equal((await request(`/api/employees/${employee.id}`, editor, "DELETE")).status, 403);
+    assert.equal((await request(`/api/employees/${employee.id}`, admin, "DELETE")).status, 204);
     // Expired elevated access does not remove a permanent viewer role.
     assert.equal((await role(admin, ids.pending, "editor", new Date(Date.now() + 60_000).toISOString())).status, 200);
     assert.equal((await role(admin, ids.pending, "editor", new Date(Date.now() + 120_000).toISOString())).status, 200);

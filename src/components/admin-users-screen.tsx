@@ -105,7 +105,7 @@ export function AdminUsersScreen({ user }: { user: ShellUser }) {
   }
 
   return <AppShell user={user} section="admin" title="User access"><div className="mx-auto max-w-7xl space-y-5 p-5 sm:p-8">
-    <div><h2 className="text-2xl font-semibold">Manage access</h2><p className="mt-2 text-sm text-[#66736b]">Grant viewer, editor, or admin roles to accounts. Users wait for approval until they have an active role.</p><p className="mt-1 text-sm text-[#66736b]">Viewer: read employee information. Editor: manage employees, departments, and time away. Admin: manage records and user access.</p></div>
+    <div><h2 className="text-2xl font-semibold">Manage access</h2><p className="mt-2 text-sm text-[#66736b]">Grant viewer, editor, or admin roles to accounts. Users wait for approval until they have an active role.</p><p className="mt-1 text-sm text-[#66736b]">Viewer: read employee information. Editor: add and edit your own employee record. Admin: manage all records, departments, time away, and user access.</p></div>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{error}</p>}
     {message && <p role="status" className="rounded-lg bg-green-50 p-4 text-sm text-green-800">{message}</p>}
     {moderating && <section className="rounded-2xl border border-[#dfe4e1] bg-white p-5"><h3 className="font-semibold">{unblocking ? "Unblock account" : "Block account"}: {moderating.name}</h3><p className="text-sm text-[#66736b]">{moderating.email}</p><form onSubmit={saveBlock} className="mt-4 space-y-4">

@@ -17,7 +17,7 @@ export const employeeInputSchema = z.object({
   status: z.enum(employeeStatuses),
   startDate: z.iso.date(),
   manager: optionalText,
-});
+}).strict();
 
 export const employeePatchSchema = employeeInputSchema.partial().refine((value) => Object.keys(value).length > 0, "At least one field is required");
 export type EmployeeInput = z.infer<typeof employeeInputSchema>;
