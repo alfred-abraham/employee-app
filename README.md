@@ -1,32 +1,27 @@
-# PeopleCore employee app
+# PeopleCore Employee App
+
+## Overview
 
 An employee directory built with Next.js, Better Auth, PostgreSQL, and Drizzle. Browse and filter employees, manage departments and time away, and maintain personal photos, private home addresses, and PDF/DOCX documents.
 
-## How it works
+## Objective
 
-```mermaid
-flowchart LR
-    Browser[Browser] --> App[Next.js UI and API]
-    App --> Access[Session and permission checks]
-    Access --> Data[Repositories / Drizzle]
-    Data --> DB[(PostgreSQL)]
-    Access --> Docs[Owner-authorized document service]
-    Docs --> Bucket[(Private Cloud Storage)]
-```
+Provide a shared employee directory with role-based access and owner-controlled personal records and documents.
+
+## Architecture
 
 PostgreSQL stores employee data, accounts, sessions, roles, and document metadata. Document files live in a private Cloud Storage bucket; only their signed-in owner can access them. Protected requests check current access, so role expiry and account blocking take effect immediately.
 
-```mermaid
-flowchart TD
-    SignIn[Sign in with verified email/password or Google] --> Role{Active role?}
-    Role -->|No| Pending[Access pending / expired]
-    Role -->|Yes| Directory[Employee directory]
-    Pending --> Grant[Admin grants access]
-    Grant --> Directory
-    SignIn --> Profile[Own photo, documents, and linked home address]
-```
+Google sign-in and document uploads require their optional services to be configured. See [the configuration and operations reference](docs/configuration-and-operations.md) for architecture and API details.
 
-Blocked accounts cannot sign in or use profile self-service. Google sign-in and document uploads require their optional services to be configured.
+## Approach
+
+- Authenticate users with verified email/password or Google.
+- Assign active roles before granting directory access.
+- Apply ownership checks to employee edits and private documents.
+- Store structured data through repositories and Drizzle migrations.
+
+## Features
 
 | Role | Access |
 | --- | --- |
@@ -34,9 +29,13 @@ Blocked accounts cannot sign in or use profile self-service. Google sign-in and 
 | Editor | Viewer access; create one employee record linked to their verified account and edit only that record. |
 | Admin | Manage all employee records, departments, time away, account roles, and blocks. |
 
-New accounts wait for an administrator to assign a role. At least one unblocked administrator must retain permanent access. See [employee permissions](docs/employee-permissions.md) for ownership details.
+New accounts wait for an administrator to assign a role. Blocked accounts cannot sign in or use profile self-service. At least one unblocked administrator must retain permanent access. See [employee permissions](docs/employee-permissions.md) for ownership details.
 
-## Quick start
+## Tools
+
+Next.js, TypeScript, Better Auth, PostgreSQL, Drizzle, Docker Compose, and optional Google Cloud services.
+
+## How to Run
 
 Requires Node.js/npm and Docker with Compose.
 
@@ -63,7 +62,7 @@ Requires Node.js/npm and Docker with Compose.
 
 For the full container stack, use `docker-compose up --build` with the configured `.env`; apply migrations when updating an existing database.
 
-## Checks and deployment
+### Validation and Deployment
 
 ```sh
 npm run typecheck
@@ -77,3 +76,11 @@ npm run build
 For production, apply all migrations, use HTTPS, and provide secrets at runtime. Follow the [Google Compute Engine deployment guide](deploy/gcp/README.md) for Cloud SQL, Secret Manager, private document storage, and release/rollback procedures.
 
 For optional Google Maps and document storage settings, API details, role expiry, account blocking, cleanup, and integration tests, see the [configuration and operations reference](docs/configuration-and-operations.md).
+
+## Limitations and Next Steps
+
+- Email/password registration requires a configured email provider and verified sender.
+- Google OAuth, Maps, and private document storage require their corresponding service configuration.
+- Production operation requires migrations, HTTPS, runtime secrets, and documented release and rollback procedures.
+
+Use the linked operations and deployment guides when configuring these services.
