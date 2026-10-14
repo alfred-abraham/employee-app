@@ -10,6 +10,16 @@ Provide a shared employee directory with role-based access and owner-controlled 
 
 ## Architecture
 
+```mermaid
+flowchart TD
+    Browser[Browser] --> App[Next.js UI and API]
+    App --> Access[Session and permission checks]
+    Access --> Data[Repositories / Drizzle]
+    Data --> DB[(PostgreSQL)]
+    Access --> Docs[Owner-authorized document service]
+    Docs --> Bucket[(Private Cloud Storage)]
+```
+
 PostgreSQL stores employee data, accounts, sessions, roles, and document metadata. Document files live in a private Cloud Storage bucket; only their signed-in owner can access them. Protected requests check current access, so role expiry and account blocking take effect immediately.
 
 Google sign-in and document uploads require their optional services to be configured. See [the configuration and operations reference](docs/configuration-and-operations.md) for architecture and API details.
@@ -22,6 +32,18 @@ Google sign-in and document uploads require their optional services to be config
 - Store structured data through repositories and Drizzle migrations.
 
 ## Features
+
+### Access Workflow
+
+```mermaid
+flowchart TD
+    SignIn[Sign in with verified email/password or Google] --> Role{Active role?}
+    Role -->|No| Pending[Access pending / expired]
+    Role -->|Yes| Directory[Employee directory]
+    Pending --> Grant[Admin grants access]
+    Grant --> Directory
+    SignIn --> Profile[Own photo, documents, and linked home address]
+```
 
 | Role | Access |
 | --- | --- |
