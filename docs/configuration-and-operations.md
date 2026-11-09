@@ -29,6 +29,8 @@ Run `npm run db:migrate` after pulling authentication changes. Passwords must be
 
 Set up the sender before enabling registration in production. If delivery fails after an account is created, the user can request another link from the sign-in page. Existing email/password accounts with `email_verified = false` will need to verify before their next sign-in. Existing credentials created by Better Auth remain valid; if any credentials were imported from another system, audit them before rollout and reset any whose hash format is unknown. The verification flow uses the existing `verification` table and needs no new migration.
 
+Users who forget their password can start a reset from the **Forgot password?** link on the sign-in page. The request sends a one-hour, single-use reset link by email; clicking it validates the token and lands on `/reset-password`, where the user chooses a new password that must satisfy the same policy. The reset flow reuses the existing `verification` table, is rate limited to three requests per hour per client, never reveals whether an email exists, and revokes all of the user's sessions on success. Reset links can be used once; resubmission fails with an invalid-token error. The email template must be configured with the same `RESEND_API_KEY` and `VERIFICATION_EMAIL_FROM` as verification mail.
+
 Production deployments must provide all authentication secrets at runtime and use HTTPS. Session cookies are HTTP-only and become secure cookies in production.
 
 ## Useful checks

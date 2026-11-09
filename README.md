@@ -63,7 +63,7 @@ Requires Node.js/npm and Docker with Compose.
 
 1. Run `npm ci`.
 2. Copy [.env.example](.env.example) to `.env`. Set `POSTGRES_PASSWORD` and use the same password in `DATABASE_URL` (local database port: `5433`). Set a random `BETTER_AUTH_SECRET` of at least 32 characters and keep `BETTER_AUTH_URL=http://localhost:3000`.
-3. Configure `RESEND_API_KEY` and a verified `VERIFICATION_EMAIL_FROM` sender for email/password registration. Alternatively, configure Google OAuth using the [authentication guide](docs/configuration-and-operations.md#authentication-setup).
+3. Configure `RESEND_API_KEY` and a verified `VERIFICATION_EMAIL_FROM` sender for email/password registration and password resets. Alternatively, configure Google OAuth using the [authentication guide](docs/configuration-and-operations.md#authentication-setup).
 4. Copy the configured `.env` to `.env.local` for Next.js and the admin bootstrap command.
 5. Start the database and apply all migrations:
 

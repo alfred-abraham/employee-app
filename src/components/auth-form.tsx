@@ -15,9 +15,10 @@ type AuthFormProps = {
   verified?: boolean;
   verificationError?: boolean;
   oauthError?: boolean;
+  resetMessage?: string | null;
 };
 
-export function AuthForm({ mode, callbackURL, googleEnabled, registered = false, verified = false, verificationError = false, oauthError = false }: AuthFormProps) {
+export function AuthForm({ mode, callbackURL, googleEnabled, registered = false, verified = false, verificationError = false, oauthError = false, resetMessage = null }: AuthFormProps) {
   const isRegister = mode === "register";
   const router = useRouter();
   const [name, setName] = useState("");
@@ -126,13 +127,17 @@ export function AuthForm({ mode, callbackURL, googleEnabled, registered = false,
 
             {registered && <div className="mt-5 rounded-xl border border-[#bcd8c5] bg-[#eef8f1] px-4 py-3 text-sm text-[#27613b]">Check your inbox for a verification link before signing in.</div>}
             {verified && <div className="mt-5 rounded-xl border border-[#bcd8c5] bg-[#eef8f1] px-4 py-3 text-sm text-[#27613b]">Email verified. You can sign in now.</div>}
+            {resetMessage && <div className="mt-5 rounded-xl border border-[#bcd8c5] bg-[#eef8f1] px-4 py-3 text-sm text-[#27613b]">{resetMessage}</div>}
             {submitted && <div className="mt-5 rounded-xl border border-[#bcd8c5] bg-[#eef8f1] px-4 py-3 text-sm text-[#27613b]">If this address is available, we sent a verification link. Check your inbox and spam folder, then sign in after verifying.</div>}
             {error && <div role="alert" className="mt-5 rounded-xl border border-[#efc9c5] bg-[#fff5f3] px-4 py-3 text-sm text-[#9c3028]">{error}</div>}
 
             {!submitted && <form onSubmit={submit} className="mt-7 space-y-4">
               {isRegister && <AuthField label="Full name" name="name" autoComplete="name" value={name} onChange={setName} icon={UserRound} />}
               <AuthField label="Email address" name="email" type="email" autoComplete="email" value={email} onChange={setEmail} icon={Mail} />
-              <AuthField label="Password" name="password" type="password" autoComplete={isRegister ? "new-password" : "current-password"} value={password} onChange={setPassword} icon={LockKeyhole} hint={isRegister ? passwordPolicy.description : undefined} />
+              <div className="space-y-1">
+                <AuthField label="Password" name="password" type="password" autoComplete={isRegister ? "new-password" : "current-password"} value={password} onChange={setPassword} icon={LockKeyhole} hint={isRegister ? passwordPolicy.description : undefined} />
+                {!isRegister && <p className="text-right text-xs"><Link className="font-semibold text-[#24583d] hover:underline" href={`/forgot-password${destinationQuery}`}>Forgot password?</Link></p>}
+              </div>
               {isRegister && <AuthField label="Confirm password" name="confirmation" type="password" autoComplete="new-password" value={confirmation} onChange={setConfirmation} icon={LockKeyhole} />}
               <button disabled={busy !== null} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#173f2b] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#24583d] disabled:cursor-wait disabled:opacity-65">{busy === "email" ? <LoaderCircle className="animate-spin" size={17}/> : <ArrowRight size={17}/>} {isRegister ? "Create account" : "Sign in"}</button>
             </form>}
