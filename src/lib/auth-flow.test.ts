@@ -112,3 +112,94 @@ test("verification resend is rate limited", async () => {
   for (let i = 0; i < 3; i++) assert.equal((await request()).status, 200);
   assert.equal((await request()).status, 429);
 });
+
+test("password reset emails a one-time link that revokes the old password", async () => {
+  let verificationUrl = "";
+  let resetUrl = "";
+  const auth = betterAuth({
+    baseURL: "http://localhost:3000",
+    secret: "a-long-test-secret-that-is-not-used-in-production",
+    emailAndPassword: {
+      enabled: true,
+      requireEmailVerification: true,
+      autoSignIn: false,
+      revokeSessionsOnPasswordReset: true,
+      async sendResetPassword({ url }) { resetUrl = url; },
+    },
+    emailVerification: { async sendVerificationEmail({ url }) { verificationUrl = url; } },
+    rateLimit: { enabled: false },
+  });
+  const request = (path: string, body: object) => auth.handler(new Request(`http://localhost:3000/api/auth/${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "http://localhost:3000" },
+    body: JSON.stringify(body),
+  }));
+  const email = "reset-test@example.com";
+  const original = "Useful-Pass9!";
+  await request("sign-up/email", { name: "Reset Test", email, password: original, callbackURL: "/login?verified=1&callbackURL=%2F" });
+  const verified = await auth.handler(new Request(verificationUrl));
+  assert.equal(verified.status, 302);
+
+  const sent = await request("request-password-reset", { email, redirectTo: "/reset-password" });
+  assert.equal(sent.status, 200);
+  assert.match(resetUrl, /^http:\/\/localhost:3000\/api\/auth\/reset-password\/[A-Za-z0-9]+\?callbackURL=%2Freset-password$/);
+  const token = new URL(resetUrl).pathname.split("/").pop()!;
+  const callback = await auth.handler(new Request(resetUrl));
+  assert.equal(callback.status, 302);
+  assert.equal(new URL(callback.headers.get("location")!).pathname, "/reset-password");
+
+  const weak = await request("reset-password", { token, newPassword: "short" });
+  assert.equal(weak.status, 400);
+
+  const first = await request("reset-password", { token, newPassword: "Reset-Pass9!" });
+  assert.equal(first.status, 200);
+  const oldSignIn = await request("sign-in/email", { email, password: original });
+  assert.equal(oldSignIn.status, 401);
+  const newSignIn = await request("sign-in/email", { email, password: "Reset-Pass9!" });
+  assert.equal(newSignIn.status, 200);
+
+  const reused = await request("reset-password", { token, newPassword: "Again-Pass9!" });
+  assert.equal(reused.status, 400);
+  assert.equal((await reused.json()).code, "INVALID_TOKEN");
+});
+
+test("password reset never reveals whether an email exists", async () => {
+  let sent = false;
+  const auth = betterAuth({
+    baseURL: "http://localhost:3000",
+    secret: "a-long-test-secret-that-is-not-used-in-production",
+    emailAndPassword: {
+      enabled: true,
+      async sendResetPassword() { sent = true; },
+    },
+    rateLimit: { enabled: false },
+  });
+  const response = await auth.handler(new Request("http://localhost:3000/api/auth/request-password-reset", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "http://localhost:3000" },
+    body: JSON.stringify({ email: "missing@example.com", redirectTo: "/login?reset=success" }),
+  }));
+  assert.equal(response.status, 200);
+  assert.equal(sent, false);
+  assert.equal((await response.json()).status, true);
+});
+
+test("password reset requests are rate limited", async () => {
+  const auth = betterAuth({
+    baseURL: "http://localhost:3000",
+    secret: "a-long-test-secret-that-is-not-used-in-production",
+    emailAndPassword: { enabled: true, async sendResetPassword() {} },
+    rateLimit: {
+      enabled: true,
+      storage: "memory",
+      customRules: { "/request-password-reset": { window: 60 * 60, max: 3 } },
+    },
+  });
+  const request = () => auth.handler(new Request("http://localhost:3000/api/auth/request-password-reset", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "http://localhost:3000", "x-forwarded-for": "192.0.2.11" },
+    body: JSON.stringify({ email: "missing@example.com" }),
+  }));
+  for (let i = 0; i < 3; i++) assert.equal((await request()).status, 200);
+  assert.equal((await request()).status, 429);
+});

@@ -9,7 +9,7 @@ import { isPasswordAllowed, passwordPolicy } from "@/lib/auth-validation";
 import { recordSignIn } from "@/lib/role-repository";
 import { accountBlockHooks } from "@/lib/account-block-auth";
 import { isAccountBlocked, isEmailBlocked, acceptCreatedSession } from "@/lib/account-block-repository";
-import { consumeVerificationToken, hasPendingVerificationToken, sendAccountVerificationEmail, verificationLifetimeSeconds } from "@/lib/verification-email";
+import { consumeVerificationToken, hasPendingVerificationToken, sendAccountVerificationEmail, sendPasswordResetEmail, verificationLifetimeSeconds } from "@/lib/verification-email";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -38,6 +38,11 @@ export const auth = betterAuth({
     minPasswordLength: passwordPolicy.minLength,
     maxPasswordLength: passwordPolicy.maxLength,
     autoSignIn: false,
+    resetPasswordTokenExpiresIn: 60 * 60,
+    revokeSessionsOnPasswordReset: true,
+    async sendResetPassword({ user, url }) {
+      await sendPasswordResetEmail(user, url);
+    },
   },
   emailVerification: {
     sendOnSignUp: true,
@@ -82,6 +87,7 @@ export const auth = betterAuth({
       "/sign-in/email": { window: 60, max: 5 },
       "/sign-up/email": { window: 60 * 60, max: 5 },
       "/send-verification-email": { window: 60 * 60, max: 3 },
+      "/request-password-reset": { window: 60 * 60, max: 3 },
     },
   },
   hooks: {
@@ -93,8 +99,8 @@ export const auth = betterAuth({
         }
         return;
       }
-      if (context.path !== "/sign-up/email") return;
-      if (!isPasswordAllowed(context.body?.password)) {
+      const passwordField = context.path === "/reset-password" ? context.body?.newPassword : context.path === "/sign-up/email" ? context.body?.password : null;
+      if (passwordField !== null && !isPasswordAllowed(passwordField)) {
         throw new APIError("BAD_REQUEST", {
           code: "PASSWORD_POLICY_FAILED",
           message: `Password must contain ${passwordPolicy.description}.`,

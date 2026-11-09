@@ -51,6 +51,25 @@ export async function sendAccountVerificationEmail(user: { id: string; email: st
   }
 }
 
+export async function sendPasswordResetEmail(user: { id: string; email: string }, url: string) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.VERIFICATION_EMAIL_FROM;
+  if (!apiKey || !from) throw new Error("Password reset email delivery is not configured.");
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from,
+      to: [user.email],
+      subject: "Reset your PeopleCore password",
+      text: `Someone requested a password reset for your PeopleCore account. Open this link within one hour to choose a new password:\n\n${url}\n\nIf you did not request this, you can ignore this message and your password will stay the same.`,
+    }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) throw new Error("Password reset email delivery failed.");
+}
+
 export async function hasPendingVerificationToken(token: string) {
   const [record] = await db.select({ id: verification.id }).from(verification).where(and(
     eq(verification.value, tokenDigest(token)),
