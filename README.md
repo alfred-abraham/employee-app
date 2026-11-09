@@ -22,11 +22,11 @@ flowchart TD
 
 PostgreSQL stores employee data, accounts, sessions, roles, and document metadata. Document files live in a private Cloud Storage bucket; only their signed-in owner can access them. Protected requests check current access, so role expiry and account blocking take effect immediately.
 
-Google sign-in and document uploads require their optional services to be configured. See [the configuration and operations reference](docs/configuration-and-operations.md) for architecture and API details.
+Google sign-in, Microsoft (Outlook) sign-in, and document uploads require their optional services to be configured. See [the configuration and operations reference](docs/configuration-and-operations.md) for architecture and API details.
 
 ## Approach
 
-- Authenticate users with verified email/password or Google.
+- Authenticate users with verified email/password, Google, or Microsoft (Outlook).
 - Assign active roles before granting directory access.
 - Apply ownership checks to employee edits and private documents.
 - Store structured data through repositories and Drizzle migrations.
@@ -37,7 +37,7 @@ Google sign-in and document uploads require their optional services to be config
 
 ```mermaid
 flowchart TD
-    SignIn[Sign in with verified email/password or Google] --> Role{Active role?}
+    SignIn[Sign in with verified email/password, Google, or Microsoft] --> Role{Active role?}
     Role -->|No| Pending[Access pending / expired]
     Role -->|Yes| Directory[Employee directory]
     Pending --> Grant[Admin grants access]
@@ -63,7 +63,7 @@ Requires Node.js/npm and Docker with Compose.
 
 1. Run `npm ci`.
 2. Copy [.env.example](.env.example) to `.env`. Set `POSTGRES_PASSWORD` and use the same password in `DATABASE_URL` (local database port: `5433`). Set a random `BETTER_AUTH_SECRET` of at least 32 characters and keep `BETTER_AUTH_URL=http://localhost:3000`.
-3. Configure `RESEND_API_KEY` and a verified `VERIFICATION_EMAIL_FROM` sender for email/password registration and password resets. Alternatively, configure Google OAuth using the [authentication guide](docs/configuration-and-operations.md#authentication-setup).
+3. Configure `RESEND_API_KEY` and a verified `VERIFICATION_EMAIL_FROM` sender for email/password registration and password resets. Alternatively, configure Google or Microsoft OAuth using the [authentication guide](docs/configuration-and-operations.md#authentication-setup).
 4. Copy the configured `.env` to `.env.local` for Next.js and the admin bootstrap command.
 5. Start the database and apply all migrations:
 
@@ -74,7 +74,7 @@ Requires Node.js/npm and Docker with Compose.
 
 6. Optionally load sample employees: `docker-compose --profile tools run --rm seed`.
 7. Run `npm run dev` and open [localhost:3000](http://localhost:3000).
-8. Register and verify your first account (or sign in with Google), then grant it administrator access from a trusted terminal:
+8. Register and verify your first account (or sign in with Google/Microsoft), then grant it administrator access from a trusted terminal:
 
    ```sh
    npm run admin:bootstrap -- admin@example.com
@@ -102,7 +102,7 @@ For optional Google Maps and document storage settings, API details, role expiry
 ## Limitations and Next Steps
 
 - Email/password registration requires a configured email provider and verified sender.
-- Google OAuth, Maps, and private document storage require their corresponding service configuration.
+- Google OAuth, Microsoft OAuth, Maps, and private document storage require their corresponding service configuration.
 - Production operation requires migrations, HTTPS, runtime secrets, and documented release and rollback procedures.
 
 Use the linked operations and deployment guides when configuring these services.

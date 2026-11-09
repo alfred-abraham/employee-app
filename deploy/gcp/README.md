@@ -20,6 +20,7 @@ recommend it for production because of latency limitations.
 - Cloud Run database secret: `employee-app-cloud-run-database-url`
 - Better Auth secret: `employee-app-better-auth-secret`
 - Google OAuth client secret: `employee-app-google-client-secret`
+- Microsoft OAuth client secret: `employee-app-microsoft-client-secret` (when configured)
 - Resend API key: `employee-app-resend-api-key`
 - Google Places server key: `employee-app-google-maps-server-key`
 - Google Maps Embed browser key: `employee-app-google-maps-embed-key`
@@ -45,6 +46,12 @@ OAuth client, and Resend API key secrets in Secret Manager. Add secret values fr
 or the Cloud Console so the values do not appear in shell history. Configure the
 Google OAuth web client with `https://<DOMAIN>` as an authorized origin and
 `https://<DOMAIN>/api/auth/callback/google` as an authorized redirect URI.
+
+For Microsoft (Outlook) login, create `employee-app-microsoft-client-secret` in
+Secret Manager and register `https://<DOMAIN>/api/auth/callback/microsoft` as a
+Web redirect URI in Microsoft Entra ID. Pass `-MicrosoftClientId` to the release
+script; the Microsoft button remains disabled until both the client ID and the
+secret exist.
 
 ## One-time migration from Compute Engine
 
@@ -134,6 +141,7 @@ After tests pass and the desired commit is checked out:
   -ProjectId "employee-application-508420" `
   -PublicUrl "https://employees-example.com" `
   -GoogleClientId "YOUR_GOOGLE_CLIENT_ID" `
+  -MicrosoftClientId "YOUR_MICROSOFT_CLIENT_ID" `
   -VerificationEmailFrom "PeopleCore <verify@your-verified-domain.com>"
 ```
 
@@ -141,7 +149,8 @@ The release script builds commit-tagged images, updates and executes the
 migration job, then deploys a new Cloud Run revision. Cloud Run shifts traffic
 only after the revision passes its startup probe. Both the migration job and
 service use the `default` network and `default` regional subnet unless
-`-Network` and `-Subnet` are supplied.
+`-Network` and `-Subnet` are supplied. Omit `-MicrosoftClientId` when Microsoft
+credentials are not yet configured.
 
 To reuse images that were already published:
 
