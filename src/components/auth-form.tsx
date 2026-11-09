@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { ArrowRight, Building2, LoaderCircle, LockKeyhole, Mail, UserRound } from "lucide-react";
+import { ArrowRight, Building2, LoaderCircle, Mail, UserRound } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { isPasswordAllowed, passwordPolicy } from "@/lib/auth-validation";
+import { PasswordField } from "@/components/password-field";
 
 type AuthFormProps = {
   mode: "login" | "register";
@@ -135,10 +136,10 @@ export function AuthForm({ mode, callbackURL, googleEnabled, registered = false,
               {isRegister && <AuthField label="Full name" name="name" autoComplete="name" value={name} onChange={setName} icon={UserRound} />}
               <AuthField label="Email address" name="email" type="email" autoComplete="email" value={email} onChange={setEmail} icon={Mail} />
               <div className="space-y-1">
-                <AuthField label="Password" name="password" type="password" autoComplete={isRegister ? "new-password" : "current-password"} value={password} onChange={setPassword} icon={LockKeyhole} hint={isRegister ? passwordPolicy.description : undefined} />
+                <PasswordField label="Password" name="password" autoComplete={isRegister ? "new-password" : "current-password"} value={password} onChange={setPassword} hint={isRegister ? passwordPolicy.description : undefined} />
                 {!isRegister && <p className="text-right text-xs"><Link className="font-semibold text-[#24583d] hover:underline" href={`/forgot-password${destinationQuery}`}>Forgot password?</Link></p>}
               </div>
-              {isRegister && <AuthField label="Confirm password" name="confirmation" type="password" autoComplete="new-password" value={confirmation} onChange={setConfirmation} icon={LockKeyhole} />}
+              {isRegister && <PasswordField label="Confirm password" name="confirmation" autoComplete="new-password" value={confirmation} onChange={setConfirmation} />}
               <button disabled={busy !== null} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#173f2b] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#24583d] disabled:cursor-wait disabled:opacity-65">{busy === "email" ? <LoaderCircle className="animate-spin" size={17}/> : <ArrowRight size={17}/>} {isRegister ? "Create account" : "Sign in"}</button>
             </form>}
 

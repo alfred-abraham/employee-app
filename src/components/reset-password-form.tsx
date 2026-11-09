@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Building2, LoaderCircle, LockKeyhole } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, LoaderCircle } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { isPasswordAllowed, passwordPolicy } from "@/lib/auth-validation";
+import { PasswordField } from "@/components/password-field";
 
 type ResetPasswordFormProps = {
   token: string;
@@ -75,15 +76,3 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   );
 }
 
-function PasswordField({ label, name, autoComplete, value, onChange, hint }: { label: string; name: string; autoComplete: string; value: string; onChange: (value: string) => void; hint?: string }) {
-  return (
-    <label className="block text-sm font-medium text-[#435047]">
-      {label}
-      <span className="relative mt-1.5 block">
-        <LockKeyhole className="absolute left-3.5 top-3 text-[#87928b]" size={17} />
-        <input required name={name} type="password" autoComplete={autoComplete} value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-[#d5dcd7] py-2.5 pl-10 pr-3 font-normal outline-none transition focus:border-[#4c7f60] focus:ring-2 focus:ring-[#4c7f60]/15" />
-      </span>
-      {hint && <span className="mt-1.5 block text-xs font-normal text-[#87928b]">{hint}</span>}
-    </label>
-  );
-}
