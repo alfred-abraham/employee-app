@@ -13,8 +13,11 @@ import { consumeVerificationToken, hasPendingVerificationToken, sendAccountVerif
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+const microsoftClientId = process.env.MICROSOFT_CLIENT_ID;
+const microsoftClientSecret = process.env.MICROSOFT_CLIENT_SECRET;
 
 export const isGoogleAuthConfigured = Boolean(googleClientId && googleClientSecret);
+export const isMicrosoftAuthConfigured = Boolean(microsoftClientId && microsoftClientSecret);
 const blockingHooks = accountBlockHooks(isAccountBlocked, isEmailBlocked, acceptCreatedSession);
 
 export const auth = betterAuth({
@@ -59,13 +62,22 @@ export const auth = betterAuth({
       }
     },
   },
-  socialProviders: isGoogleAuthConfigured ? {
-    google: {
-      clientId: googleClientId!,
-      clientSecret: googleClientSecret!,
-      requireEmailVerification: true,
-    },
-  } : {},
+  socialProviders: {
+    ...(isGoogleAuthConfigured ? {
+      google: {
+        clientId: googleClientId!,
+        clientSecret: googleClientSecret!,
+        requireEmailVerification: true,
+      },
+    } : {}),
+    ...(isMicrosoftAuthConfigured ? {
+      microsoft: {
+        clientId: microsoftClientId!,
+        clientSecret: microsoftClientSecret!,
+        requireEmailVerification: true,
+      },
+    } : {}),
+  },
   account: {
     encryptOAuthTokens: true,
     accountLinking: {

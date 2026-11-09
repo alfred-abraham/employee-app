@@ -20,12 +20,14 @@ param(
   [string] $SecretName = "employee-app-cloud-run-database-url",
   [string] $AuthSecretName = "employee-app-better-auth-secret",
   [string] $GoogleClientSecretName = "employee-app-google-client-secret",
+  [string] $MicrosoftClientSecretName = "employee-app-microsoft-client-secret",
   [string] $EmailApiSecretName = "employee-app-resend-api-key",
   [string] $MapsServerSecretName = "employee-app-google-maps-server-key",
   [string] $MapsEmbedSecretName = "employee-app-google-maps-embed-key",
   [Parameter(Mandatory)] [string] $VerificationEmailFrom,
   [Parameter(Mandatory)] [ValidatePattern('^https://')] [string] $PublicUrl,
   [Parameter(Mandatory)] [string] $GoogleClientId,
+  [string] $MicrosoftClientId = "",
   [string] $Tag = (git rev-parse --short HEAD),
   [switch] $SkipBuild
 )
@@ -65,6 +67,11 @@ $AuthSecretVersion = Read-GcloudValue secrets versions list $AuthSecretName --pr
 $AuthSecretReference = "$AuthSecretName`:$AuthSecretVersion"
 $GoogleClientSecretVersion = Read-GcloudValue secrets versions list $GoogleClientSecretName --project=$ProjectId --filter="state=ENABLED" --sort-by="~createTime" --limit=1 --format="value(name)"
 $GoogleClientSecretReference = "$GoogleClientSecretName`:$GoogleClientSecretVersion"
+$MicrosoftClientSecretReference = ""
+if ($MicrosoftClientId) {
+  $MicrosoftClientSecretVersion = Read-GcloudValue secrets versions list $MicrosoftClientSecretName --project=$ProjectId --filter="state=ENABLED" --sort-by="~createTime" --limit=1 --format="value(name)"
+  $MicrosoftClientSecretReference = "$MicrosoftClientSecretName`:$MicrosoftClientSecretVersion"
+}
 $EmailApiSecretVersion = Read-GcloudValue secrets versions list $EmailApiSecretName --project=$ProjectId --filter="state=ENABLED" --sort-by="~createTime" --limit=1 --format="value(name)"
 $EmailApiSecretReference = "$EmailApiSecretName`:$EmailApiSecretVersion"
 $MapsServerSecretVersion = Read-GcloudValue secrets versions list $MapsServerSecretName --project=$ProjectId --filter="state=ENABLED" --sort-by="~createTime" --limit=1 --format="value(name)"
@@ -74,6 +81,9 @@ $MapsEmbedSecretReference = "$MapsEmbedSecretName`:$MapsEmbedSecretVersion"
 
 Invoke-Gcloud secrets add-iam-policy-binding $AuthSecretName --project=$ProjectId --member="serviceAccount:$RuntimeServiceAccount" --role=roles/secretmanager.secretAccessor --quiet
 Invoke-Gcloud secrets add-iam-policy-binding $GoogleClientSecretName --project=$ProjectId --member="serviceAccount:$RuntimeServiceAccount" --role=roles/secretmanager.secretAccessor --quiet
+if ($MicrosoftClientId) {
+  Invoke-Gcloud secrets add-iam-policy-binding $MicrosoftClientSecretName --project=$ProjectId --member="serviceAccount:$RuntimeServiceAccount" --role=roles/secretmanager.secretAccessor --quiet
+}
 Invoke-Gcloud secrets add-iam-policy-binding $EmailApiSecretName --project=$ProjectId --member="serviceAccount:$RuntimeServiceAccount" --role=roles/secretmanager.secretAccessor --quiet
 Invoke-Gcloud secrets add-iam-policy-binding $MapsServerSecretName --project=$ProjectId --member="serviceAccount:$RuntimeServiceAccount" --role=roles/secretmanager.secretAccessor --quiet
 Invoke-Gcloud secrets add-iam-policy-binding $MapsEmbedSecretName --project=$ProjectId --member="serviceAccount:$RuntimeServiceAccount" --role=roles/secretmanager.secretAccessor --quiet
@@ -134,6 +144,10 @@ Invoke-Gcloud scheduler jobs $CleanupScheduleMode http $CleanupScheduleName `
   --headers="Content-Type=application/json" --message-body="{}" --quiet
 
 Write-Host "Deploying Cloud Run revision $Tag..."
+$AppSecrets = "DATABASE_URL=$SecretReference,BETTER_AUTH_SECRET=$AuthSecretReference,GOOGLE_CLIENT_SECRET=$GoogleClientSecretReference,RESEND_API_KEY=$EmailApiSecretReference,GOOGLE_MAPS_SERVER_KEY=$MapsServerSecretReference,GOOGLE_MAPS_EMBED_KEY=$MapsEmbedSecretReference"
+if ($MicrosoftClientId) { $AppSecrets += ",MICROSOFT_CLIENT_SECRET=$MicrosoftClientSecretReference" }
+$AppEnvVars = "DATABASE_SOCKET_PATH=/cloudsql/$ConnectionName,BETTER_AUTH_URL=$PublicUrl,GOOGLE_CLIENT_ID=$GoogleClientId,VERIFICATION_EMAIL_FROM=$VerificationEmailFrom,DOCUMENTS_BUCKET=$DocumentsBucket,DOCUMENT_MAX_FILE_BYTES=$DocumentMaxFileBytes,DOCUMENT_MAX_COUNT=$DocumentMaxCount,DOCUMENT_MAX_TOTAL_BYTES=$DocumentMaxTotalBytes"
+if ($MicrosoftClientId) { $AppEnvVars += ",MICROSOFT_CLIENT_ID=$MicrosoftClientId" }
 Invoke-Gcloud run deploy $ServiceName `
   --project=$ProjectId `
   --region=$Region `
@@ -143,8 +157,8 @@ Invoke-Gcloud run deploy $ServiceName `
   --subnet=$Subnet `
   --vpc-egress=private-ranges-only `
   --set-cloudsql-instances=$ConnectionName `
-  --set-secrets="DATABASE_URL=$SecretReference,BETTER_AUTH_SECRET=$AuthSecretReference,GOOGLE_CLIENT_SECRET=$GoogleClientSecretReference,RESEND_API_KEY=$EmailApiSecretReference,GOOGLE_MAPS_SERVER_KEY=$MapsServerSecretReference,GOOGLE_MAPS_EMBED_KEY=$MapsEmbedSecretReference" `
-  --set-env-vars="DATABASE_SOCKET_PATH=/cloudsql/$ConnectionName,BETTER_AUTH_URL=$PublicUrl,GOOGLE_CLIENT_ID=$GoogleClientId,VERIFICATION_EMAIL_FROM=$VerificationEmailFrom,DOCUMENTS_BUCKET=$DocumentsBucket,DOCUMENT_MAX_FILE_BYTES=$DocumentMaxFileBytes,DOCUMENT_MAX_COUNT=$DocumentMaxCount,DOCUMENT_MAX_TOTAL_BYTES=$DocumentMaxTotalBytes" `
+  --set-secrets=$AppSecrets `
+  --set-env-vars=$AppEnvVars `
   --port=3000 `
   --ingress=$Ingress `
   --allow-unauthenticated `

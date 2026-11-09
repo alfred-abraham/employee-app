@@ -203,3 +203,44 @@ test("password reset requests are rate limited", async () => {
   for (let i = 0; i < 3; i++) assert.equal((await request()).status, 200);
   assert.equal((await request()).status, 429);
 });
+
+test("Microsoft OAuth starts the Entra ID flow and links only verified same-email identities", async () => {
+  const auth = betterAuth({
+    baseURL: "http://localhost:3000",
+    secret: "a-long-test-secret-that-is-not-used-in-production",
+    socialProviders: {
+      microsoft: {
+        clientId: "microsoft-test-client-id",
+        clientSecret: "microsoft-test-client-secret",
+        requireEmailVerification: true,
+      },
+    },
+    account: {
+      encryptOAuthTokens: false,
+      accountLinking: {
+        enabled: true,
+        allowDifferentEmails: false,
+        requireLocalEmailVerified: true,
+      },
+    },
+    rateLimit: { enabled: false },
+  });
+  const socialSignIn = (provider: string) => auth.handler(new Request("http://localhost:3000/api/auth/sign-in/social", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "http://localhost:3000" },
+    body: JSON.stringify({ provider, callbackURL: "/" }),
+  }));
+  const signIn = await socialSignIn("microsoft");
+  assert.equal(signIn.status, 200);
+  const body = (await signIn.json()) as { redirect: boolean; url: string };
+  assert.equal(body.redirect, true);
+  const location = new URL(body.url);
+  assert.equal(location.origin, "https://login.microsoftonline.com");
+  assert.match(location.pathname, /common\/oauth2\/v2\.0\/authorize/);
+  assert.equal(location.searchParams.get("client_id"), "microsoft-test-client-id");
+  assert.equal(location.searchParams.get("redirect_uri"), "http://localhost:3000/api/auth/callback/microsoft");
+
+  const unknown = await socialSignIn("unknown");
+  assert.equal(unknown.status, 404);
+  assert.equal((await unknown.json()).code, "PROVIDER_NOT_FOUND");
+});

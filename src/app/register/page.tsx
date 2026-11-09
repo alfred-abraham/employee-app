@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { AuthForm } from "@/components/auth-form";
-import { isGoogleAuthConfigured } from "@/lib/auth";
+import { isGoogleAuthConfigured, isMicrosoftAuthConfigured } from "@/lib/auth";
 import { getCurrentSession } from "@/lib/auth-session";
 import { safeCallbackURL } from "@/lib/auth-validation";
 
@@ -10,5 +10,5 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
   const callbackURL = safeCallbackURL((await searchParams).callbackURL);
   if (await getCurrentSession()) redirect(callbackURL);
 
-  return <AuthForm mode="register" callbackURL={callbackURL} googleEnabled={isGoogleAuthConfigured} />;
+  return <AuthForm mode="register" callbackURL={callbackURL} googleEnabled={isGoogleAuthConfigured} microsoftEnabled={isMicrosoftAuthConfigured} />;
 }

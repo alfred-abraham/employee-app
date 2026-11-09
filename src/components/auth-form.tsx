@@ -11,6 +11,7 @@ type AuthFormProps = {
   mode: "login" | "register";
   callbackURL: string;
   googleEnabled: boolean;
+  microsoftEnabled?: boolean;
   registered?: boolean;
   verified?: boolean;
   verificationError?: boolean;
@@ -18,7 +19,18 @@ type AuthFormProps = {
   resetMessage?: string | null;
 };
 
-export function AuthForm({ mode, callbackURL, googleEnabled, registered = false, verified = false, verificationError = false, oauthError = false, resetMessage = null }: AuthFormProps) {
+function MicrosoftMark() {
+  return (
+    <span className="grid grid-cols-2 gap-px" aria-hidden="true">
+      <span className="size-2 rounded-[1px] bg-[#f35325]" />
+      <span className="size-2 rounded-[1px] bg-[#81bc06]" />
+      <span className="size-2 rounded-[1px] bg-[#05a6f0]" />
+      <span className="size-2 rounded-[1px] bg-[#ffba08]" />
+    </span>
+  );
+}
+
+export function AuthForm({ mode, callbackURL, googleEnabled, microsoftEnabled = false, registered = false, verified = false, verificationError = false, oauthError = false, resetMessage = null }: AuthFormProps) {
   const isRegister = mode === "register";
   const router = useRouter();
   const [name, setName] = useState("");
@@ -28,8 +40,8 @@ export function AuthForm({ mode, callbackURL, googleEnabled, registered = false,
   const [submitted, setSubmitted] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(registered || verificationError);
   const [resendMessage, setResendMessage] = useState("");
-  const [error, setError] = useState(oauthError ? "Google sign-in could not be completed. Please try again." : verificationError ? "This verification link is invalid, expired, or already used. Enter your email to request a new link." : "");
-  const [busy, setBusy] = useState<"email" | "google" | "resend" | null>(null);
+  const [error, setError] = useState(oauthError ? "Social sign-in could not be completed. Please try again." : verificationError ? "This verification link is invalid, expired, or already used. Enter your email to request a new link." : "");
+  const [busy, setBusy] = useState<"email" | "google" | "microsoft" | "resend" | null>(null);
 
   const destinationQuery = `?callbackURL=${encodeURIComponent(callbackURL)}`;
   const verificationCallbackURL = `/login?verified=1&callbackURL=${encodeURIComponent(callbackURL)}`;
@@ -108,6 +120,18 @@ export function AuthForm({ mode, callbackURL, googleEnabled, registered = false,
     }
   }
 
+  async function signInWithMicrosoft() {
+    if (!microsoftEnabled) return;
+    setError("");
+    setBusy("microsoft");
+    const errorCallbackURL = `/login?error=oauth&callbackURL=${encodeURIComponent(callbackURL)}`;
+    const result = await authClient.signIn.social({ provider: "microsoft", callbackURL, errorCallbackURL });
+    if (result?.error) {
+      setError("Microsoft sign-in could not be started. Please try again.");
+      setBusy(null);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#eff3f0] px-4 py-8 text-[#17221c] sm:grid sm:place-items-center sm:px-6">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-[28px] border border-[#dbe2dd] bg-white shadow-[0_24px_80px_rgba(21,61,42,.12)] lg:grid-cols-[1.05fr_.95fr]">
@@ -123,7 +147,7 @@ export function AuthForm({ mode, callbackURL, googleEnabled, registered = false,
             <div className="mb-9 flex items-center gap-3 lg:hidden"><div className="grid size-10 place-items-center rounded-xl bg-[#173f2b] text-[#d7f06b]"><Building2 size={20}/></div><span className="font-semibold">PeopleCore</span></div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#568067]">{isRegister ? "Create an account" : "Welcome back"}</p>
             <h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em]">{isRegister ? "Join PeopleCore" : "Sign in to your workspace"}</h2>
-            <p className="mt-2 text-sm leading-6 text-[#738078]">{isRegister ? "Use your work email or continue with Google." : "Access the employee directory with your account."}</p>
+            <p className="mt-2 text-sm leading-6 text-[#738078]">{isRegister ? "Use your work email or continue with a provider." : "Access the employee directory with your account."}</p>
 
             {registered && <div className="mt-5 rounded-xl border border-[#bcd8c5] bg-[#eef8f1] px-4 py-3 text-sm text-[#27613b]">Check your inbox for a verification link before signing in.</div>}
             {verified && <div className="mt-5 rounded-xl border border-[#bcd8c5] bg-[#eef8f1] px-4 py-3 text-sm text-[#27613b]">Email verified. You can sign in now.</div>}
@@ -148,8 +172,11 @@ export function AuthForm({ mode, callbackURL, googleEnabled, registered = false,
             </div>}
 
             <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-[0.14em] text-[#98a29b]"><span className="h-px flex-1 bg-[#e1e6e2]"/>or<span className="h-px flex-1 bg-[#e1e6e2]"/></div>
-            <button type="button" onClick={() => void signInWithGoogle()} disabled={busy !== null || !googleEnabled} className="flex w-full items-center justify-center gap-3 rounded-xl border border-[#d5dcd7] bg-white px-4 py-3 text-sm font-semibold transition hover:bg-[#f7f9f8] disabled:cursor-not-allowed disabled:opacity-50"><span className="grid size-5 place-items-center rounded-full bg-white font-bold text-[#4285f4]">G</span>{busy === "google" ? "Connecting to Google…" : "Continue with Google"}</button>
-            {!googleEnabled && <p className="mt-2 text-center text-xs text-[#8a958e]">Google sign-in is available after OAuth credentials are configured.</p>}
+            <div className="space-y-3">
+              <button type="button" onClick={() => void signInWithGoogle()} disabled={busy !== null || !googleEnabled} className="flex w-full items-center justify-center gap-3 rounded-xl border border-[#d5dcd7] bg-white px-4 py-3 text-sm font-semibold transition hover:bg-[#f7f9f8] disabled:cursor-not-allowed disabled:opacity-50"><span className="grid size-5 place-items-center rounded-full bg-white font-bold text-[#4285f4]">G</span>{busy === "google" ? "Connecting to Google…" : "Continue with Google"}</button>
+              <button type="button" onClick={() => void signInWithMicrosoft()} disabled={busy !== null || !microsoftEnabled} className="flex w-full items-center justify-center gap-3 rounded-xl border border-[#d5dcd7] bg-white px-4 py-3 text-sm font-semibold transition hover:bg-[#f7f9f8] disabled:cursor-not-allowed disabled:opacity-50"><MicrosoftMark />{busy === "microsoft" ? "Connecting to Microsoft…" : "Continue with Microsoft"}</button>
+            </div>
+            {!googleEnabled && !microsoftEnabled && <p className="mt-2 text-center text-xs text-[#8a958e]">Google and Microsoft sign-in are available after OAuth credentials are configured.</p>}
 
             <p className="mt-8 text-center text-sm text-[#6c7870]">{isRegister ? "Already have an account?" : "New to PeopleCore?"} <Link className="font-semibold text-[#24583d] hover:underline" href={`${isRegister ? "/login" : "/register"}${destinationQuery}`}>{isRegister ? "Sign in" : "Create an account"}</Link></p>
           </div>
